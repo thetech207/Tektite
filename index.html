@@ -157,8 +157,9 @@
   #preview pre code { background: none; padding: 0; }
   #preview blockquote {
     border-left: 4px solid var(--accent); margin: 10px 0;
-    padding: 8px 16px; background: var(--bg-alt);
-    border-radius: 0 6px 6px 0; color: var(--text-dim);
+    padding: 8px 16px;
+    background: color-mix(in srgb, var(--accent) 14%, var(--bg-alt));
+    border-radius: 0 6px 6px 0; color: var(--text);
   }
   #preview blockquote > :first-child { margin-top: 0; }
   #preview blockquote > :last-child { margin-bottom: 0; }
