@@ -277,6 +277,52 @@
   #quickList .q .qp { color: var(--text-dim); font-size: 11px; }
   #quickList .q.empty { color: var(--text-dim); cursor: default; }
 
+  /* ---------- full-text search ---------- */
+  #find {
+    position: fixed; inset: 0; z-index: 30; display: none;
+    background: rgba(0,0,0,.4);
+  }
+  #find.open { display: block; }
+  #findBox {
+    width: 620px; max-width: 92vw; margin: 9vh auto 0;
+    background: var(--bg-alt); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5);
+  }
+  #findIn {
+    width: 100%; padding: 12px 16px; font: inherit;
+    background: var(--bg); color: var(--text);
+    border: 0; border-bottom: 1px solid var(--border); outline: 0;
+  }
+  #findList { max-height: 62vh; overflow-y: auto; padding-bottom: 4px; }
+  #findList .fg {
+    padding: 10px 16px 3px; font-size: 11px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--text-dim);
+  }
+  #findList .f {
+    padding: 7px 16px; cursor: pointer; font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  #findList .f.sel, #findList .f:hover { background: var(--bg-hover); }
+  #findList .fp { color: var(--text-dim); font-size: 11px; }
+  #findList .fb { color: var(--accent); font-size: 11px; margin-top: 1px; }
+  #findList .fs {
+    color: var(--text-dim); font-size: 12px; margin-top: 1px;
+    overflow-wrap: anywhere;
+  }
+  #findList .fs mark {
+    background: var(--accent-dim); color: var(--text);
+    border-radius: 2px; padding: 0 1px;
+  }
+  #findList .fmore { color: var(--accent); font-size: 11px; margin-top: 2px; }
+  #findList .empty { padding: 12px 16px; color: var(--text-dim); font-size: 13px; }
+
+  @keyframes jumpFlash {
+    0%, 100% { background: transparent; }
+    25% { background: var(--accent-dim); }
+  }
+  #preview .jumpflash { animation: jumpFlash 1.6s ease; border-radius: 4px; }
+
   /* ---------- trash modal ---------- */
   #trash {
     position: fixed; inset: 0; z-index: 30; display: none;
@@ -322,7 +368,8 @@
     </div>
   </div>
   <div id="cal"></div>
-  <input id="searchBox" placeholder="Search filenames…">
+  <input id="searchBox" placeholder="Search filenames…"
+         title="Filename filter — Ctrl/⌘+Shift+F searches note text">
   <div id="tree"></div>
   <div class="side-foot">
     <button class="ghost" id="trashBtn" style="margin-bottom:6px">Trash</button>
@@ -404,6 +451,7 @@
       <tr><td>Ctrl/⌘ + E</td><td>toggle edit / preview</td></tr>
       <tr><td>Ctrl/⌘ + S</td><td>save now (auto-saves after typing anyway)</td></tr>
       <tr><td>Ctrl/⌘ + P</td><td>quick-open a note by name</td></tr>
+      <tr><td>Ctrl/⌘ + Shift + F</td><td>search titles and note text (Ctrl/⌘+Enter opens in new tab)</td></tr>
       <tr><td>Enter</td><td>on a list/task line → new item; on an empty item → end the list</td></tr>
       <tr><td>Tab / Shift+Tab</td><td>indent / unindent line or selection</td></tr>
       <tr><td>* ` [ ( " ' _ ~</td><td>auto-pairs — wraps selected text; typeover &amp; Backspace on empty pairs work</td></tr>
@@ -417,12 +465,13 @@
 <div id="about">
   <div id="aboutCard">
     <h2>Tektite</h2>
-    <div class="ver">Version 1.1 — September 22, 2026</div>
+    <div class="ver">Version 1.2 — September 22, 2026</div>
     <div class="credit">Developed by Curtis Brown &amp; Devin (Cognition)</div>
     <p class="tag">A minimal Obsidian-style daily journal.<br>
        One HTML file, no dependencies, your notes stay on your disk.</p>
     <div class="quickstart">
       <p><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>P</kbd> quick-open any note ·
+         <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> searches inside notes ·
          <kbd>[[name]]</kbd> links between notes</p>
       <p>Pick a folder — notes save there as plain <code>.md</code> files
          in <code>YYYY/MM - Month/YYYY-MM-DD.md</code>.</p>
@@ -442,6 +491,13 @@
   <div id="quickBox">
     <input id="quickIn" placeholder="Jump to note…">
     <div id="quickList"></div>
+  </div>
+</div>
+
+<div id="find">
+  <div id="findBox">
+    <input id="findIn" placeholder="Search titles and note text…">
+    <div id="findList"></div>
   </div>
 </div>
 
@@ -702,9 +758,14 @@ async function rolloverTasks(d) {
 /* ---------- saving ---------- */
 async function save(silent) {
   if (!curHandle) return;
+  const v = $('editor').value;
   const w = await curHandle.createWritable();
-  await w.write($('editor').value);
+  await w.write(v);
   await w.close();
+  try {
+    const f = await curHandle.getFile();
+    contentIndex.set(curPath, { mtime: f.lastModified, size: f.size, text: v });
+  } catch {}
   setStatus(silent ? '' : 'Saved');
 }
 function flushSave() {
@@ -822,6 +883,7 @@ const existingDates = new Set();
 const noteIndex = new Map();   // basename (lowercase, no .md) → vault path
 const fileIndex = new Map();   // basename (lowercase) → path, all files
 const notePaths = [];          // all .md paths, for quick-open
+const contentIndex = new Map(); // path → {mtime, size, text} for full-text search
 
 async function scanDir(dir, prefix) {
   const dirs = [], files = [];
@@ -1401,6 +1463,10 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     if (root) openQuick();
   }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+    e.preventDefault();
+    if (root) openFind();
+  }
 });
 
 /* ---------- buttons ---------- */
@@ -1493,6 +1559,7 @@ document.addEventListener('keydown', e => {
     $('help').classList.remove('open');
     $('about').classList.remove('open');
     $('quick').classList.remove('open');
+    $('find').classList.remove('open');
     $('trash').classList.remove('open');
   }
 });
@@ -1604,6 +1671,289 @@ $('quick').addEventListener('click', e => {
   if (e.target === $('quick')) closeQuick();
 });
 
+/* ---------- full-text search (Ctrl/Cmd+Shift+F) ---------- */
+let findItems = [], findSel = 0, findQuery = '', findTimer = null;
+const expandedPaths = new Set();
+
+/* read note bodies into contentIndex; unchanged files (same mtime+size)
+   are skipped, open tabs use their live (possibly unsaved) buffer */
+async function ensureContentIndex() {
+  const jobs = [];
+  for (const p of notePaths) {
+    const t = tabs.find(t => t.path === p);
+    if (t) {
+      contentIndex.set(p, { mtime: Date.now(), size: -1,
+        text: t === curTab ? $('editor').value : t.content });
+      continue;
+    }
+    jobs.push((async () => {
+      try {
+        const f = await (await resolve(p, false)).getFile();
+        const c = contentIndex.get(p);
+        if (c && c.mtime === f.lastModified && c.size === f.size) return;
+        contentIndex.set(p, { mtime: f.lastModified, size: f.size,
+          text: await f.text() });
+      } catch { contentIndex.delete(p); }
+    })());
+  }
+  await Promise.all(jobs);
+  const live = new Set(notePaths);
+  for (const p of [...contentIndex.keys()])
+    if (!live.has(p)) contentIndex.delete(p);
+}
+
+/* MM-DD-YYYY - Weekday for daily notes, bare name otherwise */
+function noteLabel(path) {
+  const base = path.split('/').pop();
+  const dm = base.match(/^(\d{4})-(\d{2})-(\d{2})\.md$/);
+  return dm
+    ? `${dm[2]}-${dm[3]}-${dm[1]} - ` + new Date(+dm[1], +dm[2] - 1, +dm[3])
+        .toLocaleDateString('en-US', { weekday: 'long' })
+    : base.replace(/\.md$/, '');
+}
+
+/* strip markdown line furniture for display */
+const cleanLine = l => l.trim()
+  .replace(/^>\s?/, '')
+  .replace(/^#{1,6}\s+/, '')
+  .replace(/^(?:[-*+]|\d+\.)\s+/, '')
+  .replace(/^\[[ xX]\]\s+/, '');
+const cleanHeading = s => s.replace(/[*_~=`\[\]()#|]/g, '').trim();
+
+function countOcc(text, needle) {
+  let n = 0, i = 0;
+  while ((i = text.indexOf(needle, i)) !== -1) { n++; i += needle.length; }
+  return n;
+}
+
+function runSearch(needle) {
+  const titleHits = [], contentHits = [];
+  for (const p of notePaths) {
+    const base = p.split('/').pop().replace(/\.md$/i, '');
+    if (base.toLowerCase().includes(needle)) titleHits.push({ path: p });
+    const c = contentIndex.get(p);
+    if (!c) continue;
+    const lines = c.text.split('\n');
+    const matches = [];
+    let inFront = lines[0] === '---', heading = '';
+    for (let i = 0; i < lines.length && matches.length < 20; i++) {
+      const l = lines[i];
+      if (inFront) {
+        if (i > 0 && /^---\s*$/.test(l)) inFront = false;
+        continue;
+      }
+      const hm = l.match(/^#{1,6}\s+(.*)$/);
+      if (hm) heading = cleanHeading(hm[1]);
+      if (l.toLowerCase().includes(needle))
+        matches.push({ line: i, heading, isHeading: !!hm, text: l });
+    }
+    if (matches.length) contentHits.push({ path: p, matches });
+  }
+  /* heading matches first, then most recently touched, then path */
+  contentHits.sort((a, b) => {
+    const ha = a.matches.some(m => m.isHeading);
+    const hb = b.matches.some(m => m.isHeading);
+    if (ha !== hb) return hb - ha;
+    const ta = contentIndex.get(a.path)?.mtime || 0;
+    const tb = contentIndex.get(b.path)?.mtime || 0;
+    return tb - ta || a.path.localeCompare(b.path);
+  });
+  return { titleHits: titleHits.slice(0, 20),
+           contentHits: contentHits.slice(0, 40) };
+}
+
+const bestMatch = h => h.matches.find(m => m.isHeading) || h.matches[0];
+
+/* context window around the first match, all occurrences marked */
+function snippetHtml(line, needle) {
+  const disp = cleanLine(line);
+  const src = disp.toLowerCase().includes(needle) ? disp : line.trim();
+  const low = src.toLowerCase();
+  const PAD = 60;
+  let s = 0, e = src.length;
+  if (src.length > PAD * 2 + needle.length) {
+    const i = low.indexOf(needle);
+    s = Math.max(0, i - PAD);
+    e = Math.min(src.length, i + needle.length + PAD);
+  }
+  const frag = src.slice(s, e), fl = frag.toLowerCase();
+  let html = s > 0 ? '…' : '', pos = 0;
+  for (;;) {
+    const j = fl.indexOf(needle, pos);
+    if (j === -1) { html += esc(frag.slice(pos)); break; }
+    html += esc(frag.slice(pos, j)) + '<mark>' +
+      esc(frag.slice(j, j + needle.length)) + '</mark>';
+    pos = j + needle.length;
+  }
+  return e < src.length ? html + '…' : html;
+}
+
+function hitRow(h, i, needle) {
+  const el = document.createElement('div');
+  el.className = 'f' + (i === findSel ? ' sel' : '');
+  const head = document.createElement('div');
+  const b = document.createElement('b');
+  b.textContent = noteLabel(h.path);
+  const d = document.createElement('span');
+  d.className = 'fp';
+  d.textContent = ' ' + h.path.split('/').slice(0, -1).join('/');
+  head.append(b, d);
+  el.appendChild(head);
+  if (h.matches) {
+    const shown = expandedPaths.has(h.path) ? h.matches : [bestMatch(h)];
+    for (const m of shown) {
+      if (m.heading && !m.isHeading) {
+        const bc = document.createElement('div');
+        bc.className = 'fb';
+        bc.textContent = '› ' + m.heading;
+        el.appendChild(bc);
+      }
+      const sn = document.createElement('div');
+      sn.className = 'fs';
+      sn.innerHTML = snippetHtml(m.text, needle);
+      el.appendChild(sn);
+    }
+    if (h.matches.length > 1) {
+      const more = document.createElement('div');
+      more.className = 'fmore';
+      const open = expandedPaths.has(h.path);
+      more.textContent = open ? '– show less'
+        : `+ ${h.matches.length - 1} more match${h.matches.length > 2 ? 'es' : ''}`;
+      more.onclick = e => {
+        e.stopPropagation();
+        open ? expandedPaths.delete(h.path) : expandedPaths.add(h.path);
+        renderFind();
+      };
+      el.appendChild(more);
+    }
+  }
+  el.onclick = e => openHit(h, e.ctrlKey || e.metaKey);
+  return el;
+}
+
+function renderFind() {
+  const list = $('findList');
+  list.innerHTML = '';
+  const q = findQuery.trim();
+  if (!q) {
+    findItems = [];
+    list.innerHTML =
+      '<div class="empty">Type to search titles and note text.</div>';
+    return;
+  }
+  const needle = q.toLowerCase();
+  const { titleHits, contentHits } = runSearch(needle);
+  findItems = [...titleHits, ...contentHits];
+  if (!findItems.length) {
+    list.innerHTML = '<div class="empty">No matches</div>';
+    return;
+  }
+  findSel = Math.max(0, Math.min(findSel, findItems.length - 1));
+  let i = 0;
+  if (titleHits.length) {
+    const g = document.createElement('div');
+    g.className = 'fg';
+    g.textContent = 'Titles';
+    list.appendChild(g);
+    for (const h of titleHits) list.appendChild(hitRow(h, i++, needle));
+  }
+  if (contentHits.length) {
+    const g = document.createElement('div');
+    g.className = 'fg';
+    const n = contentHits.reduce((s, h) => s + h.matches.length, 0);
+    g.textContent = `Content · ${contentHits.length} notes · ${n} matches`;
+    list.appendChild(g);
+    for (const h of contentHits) list.appendChild(hitRow(h, i++, needle));
+  }
+  list.querySelectorAll('.f')[findSel]?.scrollIntoView({ block: 'nearest' });
+}
+
+async function openHit(h, newTab) {
+  closeFind();
+  await openNote(h.path, false, newTab);
+  if (h.matches) jumpToMatch(bestMatch(h).line, findQuery);
+}
+
+/* land on the match: select+scroll in the editor, flash the rendered
+   element holding the same ordinal occurrence in preview */
+function jumpToMatch(lineNo, query) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return;
+  const ta = $('editor');
+  if (!document.body.classList.contains('preview')) {
+    const v = ta.value;
+    let off = 0;
+    for (let i = 0; i < lineNo; i++) {
+      off = v.indexOf('\n', off) + 1;
+      if (!off) return;
+    }
+    const end = v.indexOf('\n', off);
+    const idx = v.toLowerCase().indexOf(needle, off);
+    const s = idx !== -1 && (end === -1 || idx < end) ? idx : off;
+    ta.focus();
+    ta.setSelectionRange(s, Math.min(s + needle.length, v.length));
+    const lh = parseFloat(getComputedStyle(ta).lineHeight) || 24;
+    ta.scrollTop = Math.max(0, lineNo * lh - ta.clientHeight / 2);
+    return;
+  }
+  const lines = ta.value.split('\n');
+  let k = 1;
+  for (let i = 0; i < lineNo && i < lines.length; i++)
+    k += countOcc(lines[i].toLowerCase(), needle);
+  let seen = 0, target = null, fallback = null;
+  const els = $('preview')
+    .querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,td,th,pre');
+  for (const el of els) {
+    const n = countOcc(el.textContent.toLowerCase(), needle);
+    if (!n) continue;
+    if (!fallback) fallback = el;
+    seen += n;
+    if (seen >= k) { target = el; break; }
+  }
+  target = target || fallback;
+  if (!target) return;
+  target.scrollIntoView({ block: 'center' });
+  document.querySelectorAll('#preview .jumpflash')
+    .forEach(e => e.classList.remove('jumpflash'));
+  void target.offsetWidth; /* restart the animation */
+  target.classList.add('jumpflash');
+}
+
+function openFind() {
+  $('find').classList.add('open');
+  $('findIn').focus();
+  $('findIn').select();
+  filterFind($('findIn').value);
+  ensureContentIndex().then(() => {
+    if ($('find').classList.contains('open')) filterFind($('findIn').value);
+  });
+}
+function closeFind() { $('find').classList.remove('open'); }
+function filterFind(q) {
+  findQuery = q;
+  expandedPaths.clear();
+  findSel = 0;
+  renderFind();
+}
+$('findIn').addEventListener('input', e => {
+  clearTimeout(findTimer);
+  findTimer = setTimeout(() => filterFind(e.target.value), 120);
+});
+$('findIn').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') {
+    findSel = Math.min(findSel + 1, findItems.length - 1);
+    renderFind(); e.preventDefault();
+  } else if (e.key === 'ArrowUp') {
+    findSel = Math.max(findSel - 1, 0);
+    renderFind(); e.preventDefault();
+  } else if (e.key === 'Enter' && findItems[findSel]) {
+    openHit(findItems[findSel], e.ctrlKey || e.metaKey);
+  }
+});
+$('find').addEventListener('click', e => {
+  if (e.target === $('find')) closeFind();
+});
+
 /* ---------- trash viewer / restore ---------- */
 async function renderTrash() {
   const box = $('trashList');
@@ -1703,17 +2053,28 @@ function applyTheme() {
   updateFavicon();
 }
 
-/* favicon droplet follows the accent color */
+/* favicon droplet follows the accent color — drawn to PNG because
+   Edge won't reliably display a dynamically-set SVG data-URI icon */
 function updateFavicon() {
   const c = getComputedStyle(document.documentElement)
     .getPropertyValue('--accent').trim();
-  const svg =
-    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>` +
-    `<path d='M32 5C42 19 53 28 53 40a21 21 0 1 1-42 0C11 28 22 19 32 5Z' fill='${c}'/>` +
-    `<ellipse cx='23' cy='24' rx='4' ry='8' fill='#ffffff' opacity='0.3' transform='rotate(-28 23 24)'/>` +
-    `<path d='M23 33h18M32 33v17' stroke='#ffffff' stroke-width='6' stroke-linecap='round'/>` +
-    `</svg>`;
-  $('favicon').href = 'data:image/svg+xml,' + encodeURIComponent(svg);
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const x = cv.getContext('2d');
+  x.fillStyle = c;
+  x.fill(new Path2D(
+    'M32 5C42 19 53 28 53 40a21 21 0 1 1-42 0C11 28 22 19 32 5Z'));
+  x.beginPath();
+  x.ellipse(23, 24, 4, 8, -28 * Math.PI / 180, 0, Math.PI * 2);
+  x.fillStyle = 'rgba(255,255,255,.3)';
+  x.fill();
+  x.strokeStyle = '#fff';
+  x.lineWidth = 6;
+  x.lineCap = 'round';
+  x.stroke(new Path2D('M23 33h18M32 33v17'));
+  const link = $('favicon');
+  link.type = 'image/png';
+  link.href = cv.toDataURL('image/png');
 }
 
 const colorRows = $('colorRows');

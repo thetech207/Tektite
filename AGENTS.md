@@ -3,8 +3,9 @@
 Single-file Obsidian-style markdown journal. Everything lives in
 `index.html` (HTML + CSS + JS inline) — no build, no dependencies, no server
 required. `favicon.svg` is a static copy of the favicon design; the live
-favicon is an inline data-URI regenerated from `--accent` by
-`updateFavicon()` in `index.html`.
+favicon is a PNG data-URI drawn on a canvas from `--accent` by
+`updateFavicon()` in `index.html` (Edge won't reliably display
+dynamically-set SVG favicons, hence PNG).
 
 ## Architecture
 
@@ -27,6 +28,14 @@ favicon is an inline data-URI regenerated from `--accent` by
   for `[[wikilinks]]`, `fileIndex` (all files) for image/attachment
   resolution, `notePaths` for Ctrl+P quick-open, `existingDates` for
   calendar dots.
+- **Full-text search**: Ctrl+Shift+F modal. `contentIndex` maps path →
+  `{mtime, size, text}`, refreshed incrementally by `ensureContentIndex()`
+  on open (open tabs contribute their live buffer; `save()` keeps the
+  entry fresh). Results render one row per note — Titles group then
+  Content group (heading match → mtime desc), `› heading` breadcrumb,
+  `<mark>`-highlighted snippet, "+N more" expander. Enter opens the note
+  and `jumpToMatch()` selects/scrolls the line in the editor or flashes
+  the matching element in preview.
 - **Markdown**: hand-rolled subset in `md()`/`inline()` — headings, lists
   (incl. tasks + nesting), quotes, code, tables, `==highlight==`,
   `[[wiki]]`, `![[img]]`. YAML frontmatter is skipped. Checkbox toggles in
