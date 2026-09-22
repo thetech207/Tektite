@@ -34,8 +34,9 @@ dynamically-set SVG favicons, hence PNG).
   entry fresh). Results render one row per note — Titles group then
   Content group (heading match → mtime desc), `› heading` breadcrumb,
   `<mark>`-highlighted snippet, "+N more" expander. Enter opens the note
-  and `jumpToMatch()` selects/scrolls the line in the editor or flashes
-  the matching element in preview.
+  in a new tab (or focuses the existing one) and `jumpToMatch()`
+  selects/scrolls the line in the editor or flashes the matching
+  element in preview.
 - **Markdown**: hand-rolled subset in `md()`/`inline()` — headings, lists
   (incl. tasks + nesting), quotes, code, tables, `==highlight==`,
   `[[wiki]]`, `![[img]]`. YAML frontmatter is skipped. Checkbox toggles in

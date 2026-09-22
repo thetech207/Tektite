@@ -155,8 +155,13 @@
   #preview pre { background: var(--bg-alt); border-radius: 6px; padding: 12px 16px;
     overflow-x: auto; }
   #preview pre code { background: none; padding: 0; }
-  #preview blockquote { border-left: 3px solid var(--accent); margin: 0;
-    padding: 0 0 0 14px; color: var(--text-dim); }
+  #preview blockquote {
+    border-left: 4px solid var(--accent); margin: 10px 0;
+    padding: 8px 16px; background: var(--bg-alt);
+    border-radius: 0 6px 6px 0; color: var(--text-dim);
+  }
+  #preview blockquote > :first-child { margin-top: 0; }
+  #preview blockquote > :last-child { margin-bottom: 0; }
   #preview a { color: var(--accent); }
   #preview .wikilink {
     color: var(--accent); border-bottom: 1px dashed var(--accent);
@@ -451,7 +456,7 @@
       <tr><td>Ctrl/⌘ + E</td><td>toggle edit / preview</td></tr>
       <tr><td>Ctrl/⌘ + S</td><td>save now (auto-saves after typing anyway)</td></tr>
       <tr><td>Ctrl/⌘ + P</td><td>quick-open a note by name</td></tr>
-      <tr><td>Ctrl/⌘ + Shift + F</td><td>search titles and note text (Ctrl/⌘+Enter opens in new tab)</td></tr>
+      <tr><td>Ctrl/⌘ + Shift + F</td><td>search titles and note text (opens in a new tab)</td></tr>
       <tr><td>Enter</td><td>on a list/task line → new item; on an empty item → end the list</td></tr>
       <tr><td>Tab / Shift+Tab</td><td>indent / unindent line or selection</td></tr>
       <tr><td>* ` [ ( " ' _ ~</td><td>auto-pairs — wraps selected text; typeover &amp; Backspace on empty pairs work</td></tr>
@@ -1827,7 +1832,7 @@ function hitRow(h, i, needle) {
       el.appendChild(more);
     }
   }
-  el.onclick = e => openHit(h, e.ctrlKey || e.metaKey);
+  el.onclick = () => openHit(h);
   return el;
 }
 
@@ -1868,9 +1873,16 @@ function renderFind() {
   list.querySelectorAll('.f')[findSel]?.scrollIntoView({ block: 'nearest' });
 }
 
-async function openHit(h, newTab) {
+/* search hits always open in a new tab — unless one's already open */
+async function openHit(h) {
   closeFind();
-  await openNote(h.path, false, newTab);
+  const existing = tabs.find(t => t.path === h.path);
+  if (existing) {
+    await stashAndSave();
+    activateTab(existing);
+  } else {
+    await openNote(h.path, false, true);
+  }
   if (h.matches) jumpToMatch(bestMatch(h).line, findQuery);
 }
 
@@ -1947,7 +1959,7 @@ $('findIn').addEventListener('keydown', e => {
     findSel = Math.max(findSel - 1, 0);
     renderFind(); e.preventDefault();
   } else if (e.key === 'Enter' && findItems[findSel]) {
-    openHit(findItems[findSel], e.ctrlKey || e.metaKey);
+    openHit(findItems[findSel]);
   }
 });
 $('find').addEventListener('click', e => {
