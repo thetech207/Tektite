@@ -1,0 +1,1813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tektite</title>
+<link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 5C42 19 53 28 53 40a21 21 0 1 1-42 0C11 28 22 19 32 5Z' fill='%233b82f6'/%3E%3Cellipse cx='23' cy='24' rx='4' ry='8' fill='%23ffffff' opacity='0.3' transform='rotate(-28 23 24)'/%3E%3Cpath d='M23 33h18M32 33v17' stroke='%23ffffff' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #1e1e1e;
+    --bg-alt: #252525;
+    --bg-hover: #2e2e2e;
+    --border: #333;
+    --text: #dcddde;
+    --text-dim: #888;
+    --accent: #7f6df2;
+    --accent-dim: #483d8b;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ---------- welcome screen ---------- */
+  #welcome {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; background: var(--bg); text-align: center; padding: 24px;
+  }
+  #welcome h1 { font-weight: 600; margin: 0; }
+  #welcome p { color: var(--text-dim); max-width: 46ch; margin: 0; }
+  #welcome.hidden { display: none; }
+  button {
+    background: var(--accent); color: #fff; border: 0; border-radius: 6px;
+    padding: 8px 16px; font: inherit; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.1); }
+  button.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  button.ghost:hover { color: var(--text); background: var(--bg-hover); }
+
+  /* ---------- layout ---------- */
+  #sidebar {
+    width: 240px; flex: 0 0 auto; background: var(--bg-alt);
+    display: flex; flex-direction: column;
+  }
+  #resizer { flex: 0 0 5px; cursor: col-resize; border-left: 1px solid var(--border); }
+  #resizer:hover, body.resizing #resizer { background: var(--accent-dim); }
+  #searchBox {
+    margin: 6px 12px; padding: 5px 8px; font: inherit; font-size: 13px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; outline: 0;
+  }
+  #searchBox:focus { border-color: var(--accent); }
+
+  /* ---------- mini calendar ---------- */
+  #cal { padding: 8px 12px 4px; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .cal-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 4px; color: var(--text); font-size: 13px;
+  }
+  .cal-head button { padding: 0 8px; font-size: 14px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; }
+  .cal-dow { color: var(--text-dim); font-size: 10px; }
+  .cal-day { padding: 2px 0; border-radius: 4px; cursor: pointer; position: relative; }
+  .cal-day:hover { background: var(--bg-hover); }
+  .cal-day.today { color: var(--accent); font-weight: 700; }
+  .cal-day.has::after {
+    content: ''; position: absolute; bottom: 0; left: 50%;
+    transform: translateX(-50%); width: 4px; height: 4px;
+    border-radius: 50%; background: var(--accent);
+  }
+  #tree .file.attach { color: var(--text-dim); }
+  #tree details.attachDir {
+    border-top: 1px solid var(--border);
+    margin-top: 8px; padding-top: 6px;
+  }
+  #tree .dropTarget { background: var(--accent-dim); border-radius: 4px; }
+  #tree.dropTarget { outline: 1px dashed var(--accent); outline-offset: -2px; }
+  #sidebar .side-head { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  #sidebar .side-head button { width: 100%; }
+  #sidebar .side-row { display: flex; gap: 6px; margin-top: 6px; }
+  #sidebar .side-row button { flex: 1; font-size: 12px; padding: 4px 0; }
+  #tree { flex: 1; overflow-y: auto; padding: 8px 6px; font-size: 16px; }
+  #tree details { margin-left: 28px; }
+  #tree summary {
+    cursor: pointer; padding: 2px 6px; border-radius: 4px; color: var(--text-dim);
+    user-select: none;
+  }
+  #tree summary:hover { background: var(--bg-hover); color: var(--text); }
+  #tree .file {
+    display: block; padding: 2px 6px 2px 8px; border-radius: 4px;
+    margin-left: 28px;
+    color: var(--text); text-decoration: none; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #tree .file:hover { background: var(--bg-hover); }
+  #tree .file.active { background: var(--accent-dim); color: var(--text); }
+  #sidebar .side-foot { padding: 8px; border-top: 1px solid var(--border); }
+  #sidebar .side-foot button { width: 100%; font-size: 12px; }
+
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #tabbar {
+    display: none; overflow-x: auto; flex: 0 0 auto;
+    border-bottom: 1px solid var(--border); background: var(--bg-alt);
+  }
+  .tab {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 10px 6px 14px; font-size: 13px; cursor: pointer;
+    border-right: 1px solid var(--border); color: var(--text-dim);
+    white-space: nowrap; user-select: none;
+  }
+  .tab:hover { background: var(--bg-hover); }
+  .tab.active {
+    background: var(--bg); color: var(--text);
+    box-shadow: inset 0 2px 0 var(--accent);
+  }
+  .tab .tclose { border-radius: 4px; padding: 0 4px; color: var(--text-dim); }
+  .tab .tclose:hover { background: var(--bg-hover); color: var(--text); }
+  .tab.dropTarget { box-shadow: inset 3px 0 0 var(--accent); }
+  #topbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-bottom: 1px solid var(--border);
+  }
+  #crumb { flex: 1; color: var(--text-dim); font-size: 13px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  #status { color: var(--text-dim); font-size: 12px; min-width: 70px; text-align: right; }
+  #wc { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+  #topbar button { padding: 4px 12px; font-size: 13px; }
+  kbd {
+    background: var(--bg-hover); border: 1px solid var(--border); border-radius: 4px;
+    padding: 0 5px; font: 11px ui-monospace, monospace; color: var(--text-dim);
+  }
+
+  #editor {
+    flex: 1; width: 100%; resize: none; border: 0; outline: 0;
+    background: var(--bg); color: var(--text);
+    font: 15px/1.7 ui-monospace, "Cascadia Code", Consolas, monospace;
+    padding: 20px 24px;
+  }
+  #preview {
+    flex: 1; overflow-y: auto; padding: 20px 24px 60vh;
+    font-size: 15px; display: none;
+  }
+  body.preview #editor { display: none; }
+  body.preview #preview { display: block; }
+
+  /* ---------- preview typography ---------- */
+  #preview h1, #preview h2, #preview h3 { line-height: 1.3; }
+  #preview code { background: var(--bg-alt); border-radius: 4px; padding: 1px 5px;
+    font: 0.9em ui-monospace, monospace; }
+  #preview pre { background: var(--bg-alt); border-radius: 6px; padding: 12px 16px;
+    overflow-x: auto; }
+  #preview pre code { background: none; padding: 0; }
+  #preview blockquote { border-left: 3px solid var(--accent); margin: 0;
+    padding: 0 0 0 14px; color: var(--text-dim); }
+  #preview a { color: var(--accent); }
+  #preview .wikilink {
+    color: var(--accent); border-bottom: 1px dashed var(--accent);
+    cursor: pointer; text-decoration: none;
+  }
+  #preview mark { background: var(--accent-dim); color: var(--text); border-radius: 2px; padding: 0 2px; }
+  #preview hr { border: 0; border-top: 1px solid var(--border); margin: 20px 0; }
+  #preview ul, #preview ol { padding-left: 24px; }
+  #preview li.task { list-style: none; margin-left: -20px; }
+  #preview li.task input { margin-right: 6px; accent-color: var(--accent); }
+  #preview img { max-width: 100%; }
+  #preview table { border-collapse: collapse; margin: 8px 0; }
+  #preview th, #preview td {
+    border: 1px solid var(--border); padding: 4px 10px;
+  }
+  #preview th { background: var(--bg-alt); }
+  #preview:empty::before { content: "Nothing to preview"; color: var(--text-dim); }
+
+  #unsupported { color: #e07070; display: none; }
+
+  /* ---------- context menu ---------- */
+  #menu {
+    position: fixed; z-index: 20; display: none; min-width: 210px;
+    background: var(--bg-alt); border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px; box-shadow: 0 4px 16px rgba(0,0,0,.5); font-size: 13px;
+  }
+  #menu .mi { padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+  #menu .mi:hover { background: var(--bg-hover); }
+  #menu .mi.danger { color: #e07070; }
+  #menu .sep { height: 1px; background: var(--border); margin: 4px 6px; }
+
+  /* ---------- settings panel ---------- */
+  #settings {
+    position: fixed; top: 48px; right: 12px; z-index: 15; display: none;
+    width: 240px; background: var(--bg-alt); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.5);
+    font-size: 13px;
+  }
+  #settings .srow { display: flex; gap: 6px; margin-bottom: 10px; }
+  #settings .srow button { flex: 1; padding: 4px 0; font-size: 12px; }
+  #settings label {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 3px 0; color: var(--text);
+  }
+  #settings input[type=color] {
+    width: 36px; height: 22px; border: 1px solid var(--border);
+    border-radius: 4px; background: none; padding: 0; cursor: pointer;
+  }
+  #settings #resetColors { width: 100%; margin-top: 10px; font-size: 12px; padding: 4px 0; }
+
+  /* ---------- help modal ---------- */
+  #help {
+    position: fixed; inset: 0; z-index: 30; display: none;
+    background: rgba(0,0,0,.5); align-items: center; justify-content: center;
+  }
+  #help.open { display: flex; }
+  #helpCard {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    width: 560px; max-width: 92vw; max-height: 80vh; overflow-y: auto;
+    padding: 20px 24px; font-size: 13px;
+  }
+  #helpCard h2 { margin: 0 0 10px; }
+  #helpCard h3 { margin: 18px 0 6px; }
+  #helpCard table { width: 100%; border-collapse: collapse; }
+  #helpCard td {
+    padding: 4px 8px 4px 0; border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  #helpCard td:first-child {
+    font: 12px ui-monospace, monospace; color: var(--accent);
+    white-space: nowrap;
+  }
+
+  /* ---------- about modal ---------- */
+  #about {
+    position: fixed; inset: 0; z-index: 30; display: none;
+    background: rgba(0,0,0,.5); align-items: center; justify-content: center;
+  }
+  #about.open { display: flex; }
+  #aboutCard {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 32px 40px; text-align: center; font-size: 14px;
+  }
+  #aboutCard h2 { margin: 0 0 4px; font-size: 22px; }
+  #aboutCard .ver { color: var(--text-dim); margin-bottom: 16px; }
+  #aboutCard .credit { margin-bottom: 14px; }
+  #aboutCard .tag { color: var(--text-dim); font-size: 13px; margin: 0; }
+  #aboutCard .quickstart {
+    margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--text-dim); line-height: 1.7;
+  }
+  #aboutCard .quickstart p { margin: 6px 0; }
+  #aboutCard .quickstart code {
+    background: var(--bg-alt); border-radius: 4px; padding: 1px 4px;
+    font-size: 11px;
+  }
+
+  /* ---------- quick open ---------- */
+  #quick {
+    position: fixed; inset: 0; z-index: 30; display: none;
+    background: rgba(0,0,0,.4);
+  }
+  #quick.open { display: block; }
+  #quickBox {
+    width: 480px; max-width: 90vw; margin: 12vh auto 0;
+    background: var(--bg-alt); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5);
+  }
+  #quickIn {
+    width: 100%; padding: 12px 16px; font: inherit;
+    background: var(--bg); color: var(--text);
+    border: 0; border-bottom: 1px solid var(--border); outline: 0;
+  }
+  #quickList { max-height: 50vh; overflow-y: auto; }
+  #quickList .q { padding: 7px 16px; cursor: pointer; font-size: 13px; }
+  #quickList .q.sel, #quickList .q:hover { background: var(--bg-hover); }
+  #quickList .q .qp { color: var(--text-dim); font-size: 11px; }
+  #quickList .q.empty { color: var(--text-dim); cursor: default; }
+
+  /* ---------- trash modal ---------- */
+  #trash {
+    position: fixed; inset: 0; z-index: 30; display: none;
+    background: rgba(0,0,0,.5); align-items: center; justify-content: center;
+  }
+  #trash.open { display: flex; }
+  #trashCard {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    width: 440px; max-width: 92vw; max-height: 70vh; overflow-y: auto;
+    padding: 18px 22px;
+  }
+  #trashCard h2 { margin: 0 0 10px; font-size: 16px; }
+  #trashCard .thint { color: var(--text-dim); font-size: 12px; margin-bottom: 8px; }
+  .trow {
+    display: flex; align-items: center; gap: 8px; padding: 5px 0;
+    border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .trow .tname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trow button { padding: 2px 10px; font-size: 12px; width: auto; }
+</style>
+</head>
+<body>
+
+<div id="welcome">
+  <h1>Tektite</h1>
+  <p>A minimal Obsidian-style daily journal. Notes are saved as plain
+     <code>.md</code> files in <code>YYYY/MM - Month/YYYY-MM-DD.md</code>
+     inside a folder you choose.</p>
+  <p><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>E</kbd> toggles edit/preview &nbsp;·&nbsp;
+     <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> saves (also auto-saves)</p>
+  <button id="openBtn">Choose notes folder</button>
+  <p id="openErr" style="color:#e07070;display:none"></p>
+  <p id="unsupported">This browser doesn't support the File System Access API.
+     Use Chrome, Edge, Brave or another Chromium browser.</p>
+</div>
+
+<aside id="sidebar">
+  <div class="side-head">
+    <button id="todayBtn">Today</button>
+    <div class="side-row">
+      <button class="ghost" id="newNoteBtn">+ Note</button>
+      <button class="ghost" id="newFolderBtn">+ Folder</button>
+    </div>
+  </div>
+  <div id="cal"></div>
+  <input id="searchBox" placeholder="Search filenames…">
+  <div id="tree"></div>
+  <div class="side-foot">
+    <button class="ghost" id="trashBtn" style="margin-bottom:6px">Trash</button>
+    <button class="ghost" id="helpBtn" style="margin-bottom:6px">Markdown reference</button>
+    <button class="ghost" id="changeBtn">Change folder</button>
+  </div>
+</aside>
+<div id="resizer"></div>
+
+<main>
+  <div id="tabbar"></div>
+  <div id="topbar">
+    <button class="ghost" id="prevDay" title="Previous day">‹</button>
+    <button class="ghost" id="nextDay" title="Next day">›</button>
+    <span id="crumb"></span>
+    <span id="wc"></span>
+    <span id="status"></span>
+    <button class="ghost" id="attachBtn">Attach</button>
+    <button class="ghost" id="themeBtn">Theme</button>
+    <button id="modeBtn" title="Ctrl/Cmd+E">Preview</button>
+    <button class="ghost" id="aboutBtn">About</button>
+  </div>
+  <textarea id="editor" spellcheck="false" placeholder="Start writing markdown…"></textarea>
+  <div id="preview"></div>
+</main>
+
+<div id="menu">
+  <div class="mi" data-act="newtab">Open in new tab</div>
+  <div class="mi" data-act="note">New note here</div>
+  <div class="mi" data-act="folder">New folder here</div>
+  <div class="mi" data-act="rename">Rename…</div>
+  <div class="mi" data-act="move">Move to folder…</div>
+  <div class="sep" data-act="sep"></div>
+  <div class="mi" data-act="trash">Move to .trash (keep file)</div>
+  <div class="mi danger" data-act="delete">Delete permanently…</div>
+</div>
+
+<div id="settings">
+  <div class="srow">
+    <button class="ghost" id="darkBtn">Dark</button>
+    <button class="ghost" id="lightBtn">Light</button>
+  </div>
+  <div id="colorRows"></div>
+  <label>Preview font size
+    <span><input type="range" id="fontSize" min="12" max="24" step="1"
+          style="width:64px;vertical-align:middle"> <span id="fontSizeVal"></span></span>
+  </label>
+  <label>Spellcheck <input type="checkbox" id="spellChk"></label>
+  <button class="ghost" id="resetColors">Reset colors</button>
+</div>
+
+<div id="help">
+  <div id="helpCard">
+    <h2>Markdown reference</h2>
+    <table>
+      <tr><td># Text</td><td>Heading (# to ######)</td></tr>
+      <tr><td>**bold**</td><td><strong>bold</strong></td></tr>
+      <tr><td>*italic*</td><td><em>italic</em></td></tr>
+      <tr><td>~~strike~~</td><td><del>strike</del></td></tr>
+      <tr><td>==highlight==</td><td><mark>highlight</mark></td></tr>
+      <tr><td>`code`</td><td>inline <code>code</code></td></tr>
+      <tr><td>``` … ```</td><td>fenced code block</td></tr>
+      <tr><td>- item</td><td>bullet list (- * + all work)</td></tr>
+      <tr><td>1. item</td><td>numbered list</td></tr>
+      <tr><td>- [ ] task</td><td>checkbox (- [x] = done, clickable in preview)</td></tr>
+      <tr><td>&gt; quote</td><td>blockquote</td></tr>
+      <tr><td>---</td><td>horizontal rule</td></tr>
+      <tr><td>| a | b |<br>|---|---|<br>| c | d |</td>
+          <td>table (:--: centers, --: right-aligns)</td></tr>
+      <tr><td>[text](https://…)</td><td>web link</td></tr>
+      <tr><td>[note](folder/note.md)</td><td>link to another note (clickable in preview)</td></tr>
+      <tr><td>[name](attachments/x.pdf)</td><td>attachment (opens in new tab)</td></tr>
+      <tr><td>![alt](attachments/x.png)</td><td>embedded image</td></tr>
+      <tr><td>![[attachments/x.png]]</td><td>wikilink image embed</td></tr>
+      <tr><td>[[name]] or [[name|alias]]</td><td>link to a note — opens it, creates it if missing</td></tr>
+    </table>
+    <h3>Editing &amp; shortcuts</h3>
+    <table>
+      <tr><td>Ctrl/⌘ + E</td><td>toggle edit / preview</td></tr>
+      <tr><td>Ctrl/⌘ + S</td><td>save now (auto-saves after typing anyway)</td></tr>
+      <tr><td>Ctrl/⌘ + P</td><td>quick-open a note by name</td></tr>
+      <tr><td>Enter</td><td>on a list/task line → new item; on an empty item → end the list</td></tr>
+      <tr><td>Tab / Shift+Tab</td><td>indent / unindent line or selection</td></tr>
+      <tr><td>* ` [ ( " ' _ ~</td><td>auto-pairs — wraps selected text; typeover &amp; Backspace on empty pairs work</td></tr>
+      <tr><td>Paste / drop</td><td>paste or drop files to copy them into attachments/</td></tr>
+      <tr><td>Right-click tree</td><td>new note/folder, rename, move, .trash, delete</td></tr>
+      <tr><td>Drag in tree</td><td>drop on a folder to move; drop on empty space = vault root</td></tr>
+    </table>
+  </div>
+</div>
+
+<div id="about">
+  <div id="aboutCard">
+    <h2>Tektite</h2>
+    <div class="ver">Version 1.1 — September 22, 2026</div>
+    <div class="credit">Developed by Curtis Brown &amp; Devin (Cognition)</div>
+    <p class="tag">A minimal Obsidian-style daily journal.<br>
+       One HTML file, no dependencies, your notes stay on your disk.</p>
+    <div class="quickstart">
+      <p><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>P</kbd> quick-open any note ·
+         <kbd>[[name]]</kbd> links between notes</p>
+      <p>Pick a folder — notes save there as plain <code>.md</code> files
+         in <code>YYYY/MM - Month/YYYY-MM-DD.md</code>.</p>
+      <p><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>E</kbd> edit ↔ preview &nbsp;
+         <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> save &nbsp;
+         <kbd>Tab</kbd>/<kbd>Shift+Tab</kbd> indent</p>
+      <p>Enter on a list line → next item · Enter on empty item → end list</p>
+      <p><b>Right-click a file or folder in the tree</b> for the context menu:<br>
+         open in new tab · new note/folder · rename · move · trash · delete</p>
+      <p>Drag items in the tree to move · drop or paste files to attach ·
+         search box filters filenames</p>
+    </div>
+  </div>
+</div>
+
+<div id="quick">
+  <div id="quickBox">
+    <input id="quickIn" placeholder="Jump to note…">
+    <div id="quickList"></div>
+  </div>
+</div>
+
+<div id="trash">
+  <div id="trashCard">
+    <h2>Trash</h2>
+    <div class="thint">Items in vault/.trash — restore puts date notes back
+       in their month folder, everything else at vault root.</div>
+    <div id="trashList"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const MONTHS = ['January','February','March','April','May','June','July',
+                'August','September','October','November','December'];
+const pad = n => String(n).padStart(2, '0');
+const parts = d => [
+  String(d.getFullYear()),
+  pad(d.getMonth() + 1) + ' - ' + MONTHS[d.getMonth()],
+  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.md`
+];
+
+/* ---------- tiny IndexedDB store for the vault handle ---------- */
+const db = () => new Promise((res, rej) => {
+  const r = indexedDB.open('daily-notes', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('kv');
+  r.onsuccess = () => res(r.result);
+  r.onerror = () => rej(r.error);
+});
+const idbSet = async (k, v) => {
+  const d = await db();
+  return new Promise((res, rej) => {
+    const t = d.transaction('kv', 'readwrite');
+    t.objectStore('kv').put(v, k);
+    t.oncomplete = res; t.onerror = () => rej(t.error);
+  });
+};
+const idbGet = async k => {
+  const d = await db();
+  return new Promise((res, rej) => {
+    const r = d.transaction('kv').objectStore('kv').get(k);
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+};
+
+/* ---------- state ---------- */
+let root = null;          // FileSystemDirectoryHandle of vault
+let tabs = [];            // [{path, handle, content}]
+let curTab = null;        // active tab
+let curHandle = null;     // FileSystemFileHandle of active tab
+let curPath = '';
+let saveTimer = null;
+
+/* ---------- vault access ---------- */
+async function openVault() {
+  try {
+    if (root) {
+      if (await root.requestPermission({ mode: 'readwrite' }) !== 'granted')
+        root = null;
+    }
+    if (!root) {
+      root = await showDirectoryPicker({ mode: 'readwrite' });
+      await idbSet('vault', root);
+    }
+    $('welcome').classList.add('hidden');
+    await refreshTree();
+    await openDay(new Date());
+    setMode(true);
+  } catch (err) {
+    if (err.name === 'AbortError') return; // user cancelled the picker
+    root = null;
+    $('welcome').classList.remove('hidden');
+    $('openErr').textContent =
+      'Couldn\'t open that folder — it may have been moved or deleted.';
+    $('openErr').style.display = 'block';
+  }
+}
+
+async function resolve(path, create) {
+  const segs = path.split('/');
+  let dir = root;
+  for (const s of segs.slice(0, -1))
+    dir = await dir.getDirectoryHandle(s, { create });
+  return dir.getFileHandle(segs[segs.length - 1], { create });
+}
+
+async function openDay(date, newTab = false) {
+  await openNote(parts(date).join('/'), true, newTab);
+}
+async function openPath(path) {
+  await openNote(path, false, false);
+}
+
+async function openNote(path, create, newTab = false) {
+  await stashAndSave();
+  if (!newTab) {
+    const existing = tabs.find(t => t.path === path);
+    if (existing) return activateTab(existing);
+  }
+  const fh = await resolve(path, create);
+  const file = await fh.getFile();
+  let content;
+  if (file.size === 0) {
+    const m = fh.name.match(/^(\d{4})-(\d{2})-(\d{2})\.md$/);
+    if (m) {
+      const d = new Date(+m[1], +m[2] - 1, +m[3]);
+      content = `# ${d.toLocaleDateString('en-US',
+        { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}\n\n`;
+      const carried = await rolloverTasks(d);
+      if (carried) content += `## To do\n${carried}\n`;
+    } else {
+      content = `# ${fh.name.replace(/\.md$/, '')}\n\n`;
+    }
+    const w = await fh.createWritable();
+    await w.write(content);
+    await w.close();
+    refreshTree();
+  } else {
+    content = await file.text();
+  }
+  /* reuse the focused tab unless a new tab was requested */
+  const target = (!newTab && curTab) ? curTab : null;
+  if (target) {
+    target.path = path;
+    target.handle = fh;
+    target.content = content;
+    activateTab(target);
+  } else {
+    const tab = { path, handle: fh, content };
+    tabs.push(tab);
+    activateTab(tab);
+  }
+}
+
+function activateTab(t) {
+  curTab = t;
+  curHandle = t.handle;
+  curPath = t.path;
+  $('editor').value = t.content;
+  $('crumb').textContent = curPath;
+  setStatus('');
+  updateWC();
+  renderPreview();
+  markActive();
+  renderTabs();
+}
+
+/* stash the editor's content into the active tab and save it to disk */
+async function stashAndSave() {
+  if (!curTab || !curHandle) return;
+  curTab.content = $('editor').value;
+  try { await save(true); } catch {}
+}
+
+async function closeTab(t) {
+  if (t === curTab) await stashAndSave();
+  const i = tabs.indexOf(t);
+  tabs.splice(i, 1);
+  if (t === curTab) {
+    curTab = null; curHandle = null; curPath = '';
+    const next = tabs[Math.min(i, tabs.length - 1)];
+    if (next) return activateTab(next);
+    $('editor').value = '';
+    $('crumb').textContent = '';
+    updateWC();
+    renderPreview();
+    markActive();
+  }
+  renderTabs();
+}
+
+/* close any tabs whose file lived at path (or inside the moved/deleted dir) */
+function closeTabsUnder(path) {
+  const doomed = tabs.filter(t =>
+    t.path === path || t.path.startsWith(path + '/'));
+  if (!doomed.length) return;
+  for (const t of doomed) tabs.splice(tabs.indexOf(t), 1);
+  if (doomed.includes(curTab)) {
+    curTab = null; curHandle = null; curPath = '';
+    const next = tabs[tabs.length - 1];
+    if (next) return activateTab(next);
+    $('editor').value = '';
+    $('crumb').textContent = '';
+    updateWC();
+    renderPreview();
+    markActive();
+  }
+  renderTabs();
+}
+
+let dragTab = null;
+function renderTabs() {
+  const bar = $('tabbar');
+  bar.innerHTML = '';
+  bar.style.display = tabs.length ? 'flex' : 'none';
+  for (const t of tabs) {
+    const el = document.createElement('div');
+    el.className = 'tab' + (t === curTab ? ' active' : '');
+    el.title = t.path;
+    el.draggable = true;
+    el.addEventListener('dragstart', e => {
+      dragTab = t;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', 'tab');
+    });
+    el.addEventListener('dragend', () => dragTab = null);
+    el.addEventListener('dragover', e => {
+      if (!dragTab || dragTab === t) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      el.classList.add('dropTarget');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('dropTarget'));
+    el.addEventListener('drop', e => {
+      if (!dragTab || dragTab === t) return;
+      e.preventDefault();
+      el.classList.remove('dropTarget');
+      const from = tabs.indexOf(dragTab), to = tabs.indexOf(t);
+      tabs.splice(to, 0, tabs.splice(from, 1)[0]);
+      dragTab = null;
+      renderTabs();
+    });
+    const label = document.createElement('span');
+    const dm = t.path.split('/').pop()
+      .match(/^(\d{4})-(\d{2})-(\d{2})\.md$/);
+    label.textContent = dm
+      ? `${dm[2]}-${dm[3]}-${dm[1]}`
+      : t.path.split('/').pop().replace(/\.md$/, '');
+    const x = document.createElement('span');
+    x.className = 'tclose';
+    x.textContent = '×';
+    x.onclick = async e => { e.stopPropagation(); await closeTab(t); };
+    el.append(label, x);
+    el.onclick = async () => { await stashAndSave(); activateTab(t); };
+    el.onauxclick = e => { if (e.button === 1) closeTab(t); };
+    bar.appendChild(el);
+  }
+}
+
+/* find the most recent prior daily note and carry over unchecked tasks */
+async function rolloverTasks(d) {
+  for (let i = 1; i <= 14; i++) {
+    const prev = new Date(d);
+    prev.setDate(d.getDate() - i);
+    try {
+      const fh = await resolve(parts(prev).join('/'), false);
+      const text = await (await fh.getFile()).text();
+      const tasks = text.split('\n')
+        .filter(l => /^\s*[-*+]\s+\[ \]/.test(l));
+      return tasks.length ? tasks.join('\n') + '\n' : '';
+    } catch {}
+  }
+  return '';
+}
+
+/* ---------- saving ---------- */
+async function save(silent) {
+  if (!curHandle) return;
+  const w = await curHandle.createWritable();
+  await w.write($('editor').value);
+  await w.close();
+  setStatus(silent ? '' : 'Saved');
+}
+function flushSave() {
+  clearTimeout(saveTimer);
+  return curHandle ? save(true) : Promise.resolve();
+}
+function setStatus(s) { $('status').textContent = s; }
+
+function updateWC() {
+  const t = $('editor').value;
+  const w = t.trim() ? t.trim().split(/\s+/).length : 0;
+  $('wc').textContent = `${w}w · ${t.length}c`;
+}
+$('editor').addEventListener('input', () => {
+  setStatus('Unsaved…');
+  updateWC();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => save(), 800);
+});
+
+/* Obsidian-style list continuation: Enter on a task/bullet line makes a new
+   item; Enter on an empty item removes the marker and drops to a fresh line */
+$('editor').addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.ctrlKey || e.metaKey || e.altKey) return;
+  const ta = e.target;
+  const s = ta.selectionStart, v = ta.value;
+  if (s !== ta.selectionEnd) return;
+  const lineStart = v.lastIndexOf('\n', s - 1) + 1;
+  const nl = v.indexOf('\n', s);
+  const lineEnd = nl === -1 ? v.length : nl;
+  const m = v.slice(lineStart, lineEnd)
+    .match(/^(\s*)((?:[-*+])|(?:\d+\.))\s+(\[[ xX]\]\s+)?(.*)$/);
+  if (!m) return;
+  const [, indent, bullet, task = '', text] = m;
+  const markerLen = indent.length + bullet.length + 1 + task.length;
+  if (s - lineStart < markerLen) return;
+  e.preventDefault();
+  if (!text.trim()) {
+    ta.value = v.slice(0, lineStart) + '\n' + v.slice(lineEnd);
+    ta.selectionStart = ta.selectionEnd = lineStart + 1;
+  } else {
+    const nb = /\d/.test(bullet) ? (parseInt(bullet) + 1) + '.' : bullet;
+    const insert = '\n' + indent + nb + ' ' + (task ? '[ ] ' : '');
+    ta.value = v.slice(0, s) + insert + v.slice(s);
+    ta.selectionStart = ta.selectionEnd = s + insert.length;
+  }
+  ta.dispatchEvent(new Event('input'));
+});
+
+/* Tab / Shift+Tab indent & unindent the current line or selection */
+$('editor').addEventListener('keydown', e => {
+  if (e.key !== 'Tab') return;
+  e.preventDefault();
+  const ta = e.target;
+  const s = ta.selectionStart, en = ta.selectionEnd, v = ta.value;
+  const lStart = v.lastIndexOf('\n', s - 1) + 1;
+  const nl = v.indexOf('\n', en);
+  const lEnd = nl === -1 ? v.length : nl;
+  const lines = v.slice(lStart, lEnd).split('\n');
+  if (e.shiftKey) {
+    const out = lines.map(l => l.replace(/^ {1,2}/, ''));
+    const total = lines.join('\n').length - out.join('\n').length;
+    const first = lines[0].length - out[0].length;
+    ta.value = v.slice(0, lStart) + out.join('\n') + v.slice(lEnd);
+    ta.selectionStart = Math.max(lStart, s - first);
+    ta.selectionEnd = Math.max(ta.selectionStart, en - total);
+  } else {
+    ta.value = v.slice(0, lStart) + lines.map(l => '  ' + l).join('\n') + v.slice(lEnd);
+    ta.selectionStart = s + 2;
+    ta.selectionEnd = en + 2 * lines.length;
+  }
+  ta.dispatchEvent(new Event('input'));
+});
+
+/* Obsidian-style auto-pairing: opener inserts closer, selection wraps,
+   typing a closer types over it, Backspace removes an empty pair */
+const PAIRS = { '(': ')', '{': '}', '"': '"',
+                "'": "'", '`': '`', '*': '*', '_': '_', '~': '~' };
+$('editor').addEventListener('keydown', e => {
+  const ta = e.target, s = ta.selectionStart, en = ta.selectionEnd;
+  const v = ta.value, prev = v[s - 1], next = v[s];
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+  if (e.key === 'Backspace' && s === en && PAIRS[prev] === next) {
+    e.preventDefault();
+    ta.value = v.slice(0, s - 1) + v.slice(s + 1);
+    ta.selectionStart = ta.selectionEnd = s - 1;
+    ta.dispatchEvent(new Event('input'));
+    return;
+  }
+  if (!PAIRS[e.key]) return;
+
+  /* typeover: `)|` + `)` → `)|` — unless doubling `*|*` → `**|**` */
+  if (s === en && next === e.key && prev !== e.key) {
+    e.preventDefault();
+    ta.selectionStart = ta.selectionEnd = s + 1;
+    return;
+  }
+  /* don't pair an apostrophe inside a word */
+  if ((e.key === "'" || e.key === '"') && /\w/.test(prev || '')) return;
+
+  e.preventDefault();
+  const sel = v.slice(s, en);
+  ta.value = v.slice(0, s) + e.key + sel + PAIRS[e.key] + v.slice(en);
+  ta.selectionStart = s + 1;
+  ta.selectionEnd = en + 1;
+  ta.dispatchEvent(new Event('input'));
+});
+
+/* ---------- file tree ---------- */
+localStorage.removeItem('dn-open-dirs'); // old all-expanded seed
+const storedDirs = localStorage.getItem('dn-tree-open');
+const openDirs = new Set(storedDirs ? JSON.parse(storedDirs) : []);
+const existingDates = new Set();
+const noteIndex = new Map();   // basename (lowercase, no .md) → vault path
+const fileIndex = new Map();   // basename (lowercase) → path, all files
+const notePaths = [];          // all .md paths, for quick-open
+
+async function scanDir(dir, prefix) {
+  const dirs = [], files = [];
+  for await (const [name, h] of dir.entries()) {
+    if (name.startsWith('.')) continue;
+    if (h.kind === 'directory')
+      dirs.push({ name, path: prefix + name,
+                  children: await scanDir(h, prefix + name + '/') });
+    else if (!/(\.(crswap|swp|swx|tmp|bak)|~)$/i.test(name)) {
+      files.push({ name, path: prefix + name, md: name.endsWith('.md') });
+      if (!fileIndex.has(name.toLowerCase()))
+        fileIndex.set(name.toLowerCase(), prefix + name);
+      if (name.endsWith('.md')) {
+        const key = name.slice(0, -3).toLowerCase();
+        if (!noteIndex.has(key)) noteIndex.set(key, prefix + name);
+        notePaths.push(prefix + name);
+      }
+      if (/^\d{4}-\d{2}-\d{2}\.md$/.test(name)) existingDates.add(name.slice(0, 10));
+    }
+  }
+  dirs.sort((a, b) =>
+    (a.name.toLowerCase() === 'attachments') -
+      (b.name.toLowerCase() === 'attachments') ||
+    a.name.localeCompare(b.name));
+  files.sort((a, b) => a.name.localeCompare(b.name));
+  return [...dirs, ...files];
+}
+
+function renderNodes(nodes, container) {
+  for (const n of nodes) {
+    if (n.children) {
+      const det = document.createElement('details');
+      det.dataset.path = n.path;
+      if (n.name.toLowerCase() === 'attachments') det.classList.add('attachDir');
+      const sum = document.createElement('summary');
+      sum.textContent = n.name.toLowerCase() === 'attachments' ? 'Attachments' : n.name;
+      enableDrag(sum, n.path, true);
+      enableDrop(sum, n.path);
+      det.appendChild(sum);
+      det.open = openDirs.has(n.path);
+      /* record expand/collapse on real clicks only, so search filtering
+         doesn't pollute the saved state */
+      sum.addEventListener('click', () => setTimeout(() => {
+        det.open ? openDirs.add(n.path) : openDirs.delete(n.path);
+        localStorage.setItem('dn-tree-open', JSON.stringify([...openDirs]));
+      }));
+      renderNodes(n.children, det);
+      container.appendChild(det);
+    } else {
+      const a = document.createElement('a');
+      a.className = 'file';
+      const dm = n.name.match(/^(\d{4})-(\d{2})-(\d{2})\.md$/);
+      a.textContent = dm
+        ? `${dm[2]}-${dm[3]}-${dm[1]} - ` + new Date(+dm[1], +dm[2] - 1, +dm[3])
+            .toLocaleDateString('en-US', { weekday: 'long' })
+        : n.name.replace(/\.md$/, '');
+      a.dataset.path = n.path;
+      enableDrag(a, n.path, false);
+      if (n.md) {
+        a.onclick = () => openPath(n.path);
+      } else {
+        a.classList.add('attach');
+        a.textContent = n.name;
+        a.onclick = () => openAttachment(n.path);
+      }
+      container.appendChild(a);
+    }
+  }
+}
+
+async function refreshTree() {
+  const tree = $('tree');
+  tree.innerHTML = '';
+  existingDates.clear();
+  noteIndex.clear();
+  fileIndex.clear();
+  notePaths.length = 0;
+  renderNodes(await scanDir(root, ''), tree);
+  markActive();
+  filterTree($('searchBox').value);
+  renderCalendar();
+}
+
+/* ---------- mini calendar ---------- */
+let calY = new Date().getFullYear(), calM = new Date().getMonth();
+function renderCalendar() {
+  const now = new Date();
+  const startDay = new Date(calY, calM, 1).getDay();
+  const daysIn = new Date(calY, calM + 1, 0).getDate();
+  let html = `<div class="cal-head"><button class="ghost" id="calPrev">‹</button>` +
+    `<span>${MONTHS[calM]} ${calY}</span><button class="ghost" id="calNext">›</button></div>` +
+    '<div class="cal-grid">';
+  for (const w of 'SMTWTFS') html += `<span class="cal-dow">${w}</span>`;
+  for (let i = 0; i < startDay; i++) html += '<span></span>';
+  for (let d = 1; d <= daysIn; d++) {
+    const key = `${calY}-${pad(calM + 1)}-${pad(d)}`;
+    const cls = 'cal-day' +
+      (existingDates.has(key) ? ' has' : '') +
+      (d === now.getDate() && calM === now.getMonth() &&
+       calY === now.getFullYear() ? ' today' : '');
+    html += `<span class="${cls}" data-d="${d}">${d}</span>`;
+  }
+  $('cal').innerHTML = html + '</div>';
+  $('calPrev').onclick = () => { if (--calM < 0) { calM = 11; calY--; } renderCalendar(); };
+  $('calNext').onclick = () => { if (++calM > 11) { calM = 0; calY++; } renderCalendar(); };
+  $('cal').querySelectorAll('.cal-day').forEach(el =>
+    el.onclick = () => openDay(new Date(calY, calM, +el.dataset.d), true));
+}
+
+/* filename-only filter */
+function filterTree(q) {
+  q = q.trim().toLowerCase();
+  const files = [...document.querySelectorAll('#tree .file')];
+  const dirs = [...document.querySelectorAll('#tree details')];
+  if (!q) {
+    files.forEach(f => f.style.display = '');
+    dirs.forEach(d => {
+      d.style.display = '';
+      d.open = openDirs.has(d.dataset.path);
+    });
+    return;
+  }
+  files.forEach(f =>
+    f.style.display = f.dataset.path.toLowerCase().includes(q) ? '' : 'none');
+  dirs.sort((a, b) =>
+      b.dataset.path.split('/').length - a.dataset.path.split('/').length)
+    .forEach(d => {
+      const kidVisible = [...d.children].some(c =>
+        (c.classList?.contains('file') || c.tagName === 'DETAILS') &&
+        c.style.display !== 'none');
+      const nameHit = d.dataset.path.toLowerCase().includes(q);
+      d.style.display = kidVisible || nameHit ? '' : 'none';
+      if (kidVisible || nameHit) d.open = true;
+    });
+}
+$('searchBox').addEventListener('input', e => filterTree(e.target.value));
+function markActive() {
+  document.querySelectorAll('#tree .file').forEach(a =>
+    a.classList.toggle('active', a.dataset.path === curPath));
+}
+
+/* ---------- move / delete ---------- */
+async function resolveDir(path) {
+  let dir = root;
+  for (const s of path.split('/').filter(Boolean))
+    dir = await dir.getDirectoryHandle(s);
+  return dir;
+}
+
+async function copyDir(src, dest) {
+  for await (const [name, h] of src.entries()) {
+    if (h.kind === 'directory') {
+      await copyDir(h, await dest.getDirectoryHandle(name, { create: true }));
+    } else {
+      const f = await dest.getFileHandle(name, { create: true });
+      const w = await f.createWritable();
+      await w.write(await h.getFile());
+      await w.close();
+    }
+  }
+}
+
+async function uniqueName(dir, name, isDir) {
+  const exists = async n => {
+    try {
+      isDir ? await dir.getDirectoryHandle(n) : await dir.getFileHandle(n);
+      return true;
+    } catch { return false; }
+  };
+  if (!(await exists(name))) return name;
+  const m = name.match(/^(.*?)(\.[^.]*)?$/);
+  const base = m[1], ext = m[2] || '';
+  for (let i = 1; ; i++)
+    if (!(await exists(`${base} ${i}${ext}`))) return `${base} ${i}${ext}`;
+}
+
+
+
+/* move into vault/.trash — gone from the tree, retained on disk */
+async function trashEntry(path, isDir) {
+  const segs = path.split('/');
+  const name = segs.pop();
+  const parent = await resolveDir(segs.join('/'));
+  const trash = await root.getDirectoryHandle('.trash', { create: true });
+  const destName = await uniqueName(trash, name, isDir);
+  if (isDir) {
+    const src = await parent.getDirectoryHandle(name);
+    await copyDir(src, await trash.getDirectoryHandle(destName, { create: true }));
+  } else {
+    const src = await parent.getFileHandle(name);
+    const dest = await trash.getFileHandle(destName, { create: true });
+    const w = await dest.createWritable();
+    await w.write(await src.getFile());
+    await w.close();
+  }
+  await parent.removeEntry(name, { recursive: true });
+  closeTabsUnder(path);
+  await refreshTree();
+}
+
+async function deleteEntry(path, isDir) {
+  const what = isDir ? 'folder and ALL its contents' : 'note';
+  if (!confirm(`Permanently delete ${what} "${path}"?\nThis cannot be undone.`)) return;
+  const segs = path.split('/');
+  const name = segs.pop();
+  const parent = await resolveDir(segs.join('/'));
+  await parent.removeEntry(name, { recursive: true });
+  closeTabsUnder(path);
+  await refreshTree();
+}
+
+/* move a note or folder into another folder (destDirPath '' = vault root);
+   newName optionally renames in the process */
+async function moveEntry(path, isDir, destDirPath, newName) {
+  const segs = path.split('/');
+  const name = segs.pop();
+  const srcParentPath = segs.join('/');
+  if (srcParentPath === destDirPath && !newName) return;
+  if (isDir && (destDirPath === path || destDirPath.startsWith(path + '/')))
+    return; // can't move a folder into itself
+  const srcParent = await resolveDir(srcParentPath);
+  const destDir = await resolveDir(destDirPath);
+  const destName = await uniqueName(destDir, newName || name, isDir);
+  if (isDir) {
+    const src = await srcParent.getDirectoryHandle(name);
+    await copyDir(src, await destDir.getDirectoryHandle(destName, { create: true }));
+  } else {
+    const src = await srcParent.getFileHandle(name);
+    const dest = await destDir.getFileHandle(destName, { create: true });
+    const w = await dest.createWritable();
+    await w.write(await src.getFile());
+    await w.close();
+  }
+  await srcParent.removeEntry(name, { recursive: true });
+  /* keep any open tabs pointing at their new locations */
+  const prefix = (destDirPath ? destDirPath + '/' : '') + destName;
+  for (const t of tabs) {
+    if (t.path === path || t.path.startsWith(path + '/')) {
+      t.path = prefix + t.path.slice(path.length);
+      t.handle = await resolve(t.path, false);
+    }
+  }
+  if (curTab) {
+    curPath = curTab.path;
+    curHandle = curTab.handle;
+    $('crumb').textContent = curPath;
+  }
+  renderTabs();
+  await refreshTree();
+}
+
+/* ---------- drag & drop in the tree ---------- */
+let dragData = null;
+function enableDrag(el, path, isDir) {
+  el.draggable = true;
+  el.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    dragData = { path, isDir };
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', path);
+  });
+  el.addEventListener('dragend', () => dragData = null);
+}
+function enableDrop(el, dirPath) {
+  el.addEventListener('dragover', e => {
+    if (!dragData && !e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = dragData ? 'move' : 'copy';
+    el.classList.add('dropTarget');
+  });
+  el.addEventListener('dragleave', () => el.classList.remove('dropTarget'));
+  el.addEventListener('drop', async e => {
+    if (!dragData && !e.dataTransfer.files?.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    el.classList.remove('dropTarget');
+    if (dragData) {
+      const { path, isDir } = dragData;
+      dragData = null;
+      await moveEntry(path, isDir, dirPath).catch(() => setStatus('Move failed'));
+    } else {
+      await importFiles(e.dataTransfer.files, dirPath || 'attachments');
+    }
+  });
+}
+enableDrop($('tree'), ''); /* drop on empty space → vault root */
+
+/* ---------- markdown renderer (subset) ---------- */
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function inline(s) {
+  s = esc(s);
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/!\[\[([^\]]+)\]\]/g, (m, t) =>
+    /\.md$/i.test(t)
+      ? `<a href="#" class="wikilink" data-wiki="${t.replace(/\.md$/i, '')}">${t}</a>`
+      : `<img data-vault="${t}">`);
+  s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (m, alt, src) =>
+    /^(https?|data|blob):/.test(src)
+      ? `<img alt="${alt}" src="${src}">`
+      : `<img alt="${alt}" data-vault="${src}">`);
+  s = s.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+    (m, t, d) => `<a href="#" class="wikilink" data-wiki="${t}">${d || t}</a>`);
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+  s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  s = s.replace(/==([^=]+)==/g, '<mark>$1</mark>');
+  return s;
+}
+const isSpecial = l =>
+  /^(```|#{1,6}\s|>\s?|\s*(?:[-*+]|\d+\.)\s+|\s*(?:-{3,}|\*{3,}|_{3,})\s*$)/.test(l);
+
+function renderListBlock(items) {
+  let html = '', stack = [];
+  for (const it of items) {
+    if (!stack.length || it.indent > stack[stack.length - 1].indent) {
+      html += `<${it.type}>`;
+      stack.push({ indent: it.indent, type: it.type });
+    } else {
+      while (stack.length && it.indent < stack[stack.length - 1].indent)
+        html += `</${stack.pop().type}>`;
+      if (stack.length && stack[stack.length - 1].type !== it.type) {
+        html += `</${stack.pop().type}><${it.type}>`;
+        stack.push({ indent: it.indent, type: it.type });
+      }
+    }
+    html += it.task
+      ? `<li class="task"><input type="checkbox" data-t="${it.tIdx}"${it.checked ? ' checked' : ''}> ${inline(it.text)}</li>`
+      : `<li>${inline(it.text)}</li>`;
+  }
+  while (stack.length) html += `</${stack.pop().type}>`;
+  return html;
+}
+
+function md(src) {
+  const lines = src.split('\n');
+  let html = '', i = 0, taskNo = 0;
+  /* hide YAML frontmatter */
+  if (lines[0] === '---') {
+    let j = 1;
+    while (j < lines.length && !/^---\s*$/.test(lines[j])) j++;
+    if (j < lines.length) i = j + 1;
+  }
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^\s*$/.test(line)) { i++; continue; }
+    if (/^```/.test(line.trim())) {
+      const buf = []; i++;
+      while (i < lines.length && !/^```/.test(lines[i].trim())) buf.push(lines[i++]);
+      i++;
+      html += `<pre><code>${esc(buf.join('\n'))}</code></pre>`;
+      continue;
+    }
+    const h = line.match(/^(#{1,6})\s+(.*)$/);
+    if (h) { html += `<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`; i++; continue; }
+    if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { html += '<hr>'; i++; continue; }
+    if (/^>\s?/.test(line)) {
+      const buf = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) buf.push(lines[i++].replace(/^>\s?/, ''));
+      html += `<blockquote>${md(buf.join('\n'))}</blockquote>`;
+      continue;
+    }
+    /* pipe table: header row + |---| separator row */
+    if (/^\s*\|/.test(line) && i + 1 < lines.length &&
+        /^\s*\|?[\s:|-]+\|?\s*$/.test(lines[i + 1]) &&
+        lines[i + 1].includes('-')) {
+      const cells = l => l.trim().replace(/^\||\|$/g, '')
+        .split('|').map(c => c.trim());
+      const aligns = cells(lines[i + 1]).map(c =>
+        c.startsWith(':') && c.endsWith(':') ? 'center' :
+        c.endsWith(':') ? 'right' : 'left');
+      const al = ci => aligns[ci] ? ` style="text-align:${aligns[ci]}"` : '';
+      let t = '<table><thead><tr>';
+      cells(line).forEach((c, ci) => t += `<th${al(ci)}>${inline(c)}</th>`);
+      t += '</tr></thead><tbody>';
+      i += 2;
+      while (i < lines.length && /^\s*\|/.test(lines[i]) && lines[i].trim()) {
+        t += '<tr>';
+        cells(lines[i]).forEach((c, ci) => t += `<td${al(ci)}>${inline(c)}</td>`);
+        i++;
+      }
+      html += t + '</tbody></table>';
+      continue;
+    }
+    if (/^\s*(?:[-*+]|\d+\.)\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length) {
+        const m = lines[i].match(/^(\s*)(?:([-*+])|(\d+\.))\s+(.*)$/);
+        if (!m) break;
+        const t = m[4].match(/^\[([ xX])\]\s+(.*)$/);
+        items.push({
+          indent: m[1].replace(/\t/g, '  ').length,
+          type: m[3] ? 'ol' : 'ul',
+          task: !!t, checked: t ? t[1] !== ' ' : false,
+          text: t ? t[2] : m[4],
+          tIdx: t ? taskNo++ : -1
+        });
+        i++;
+      }
+      html += renderListBlock(items);
+      continue;
+    }
+    const buf = [];
+    while (i < lines.length && !/^\s*$/.test(lines[i]) && !isSpecial(lines[i]))
+      buf.push(lines[i++]);
+    html += `<p>${inline(buf.join('\n')).replace(/\n/g, '<br>')}</p>`;
+  }
+  return html;
+}
+
+function renderPreview() {
+  $('preview').innerHTML = md($('editor').value);
+  resolveImages();
+}
+
+/* resolve vault-relative image paths to blob URLs */
+let blobUrls = [];
+async function resolveImages() {
+  blobUrls.forEach(u => URL.revokeObjectURL(u));
+  blobUrls = [];
+  const curDir = curPath.split('/').slice(0, -1).join('/');
+  for (const img of document.querySelectorAll('#preview img[data-vault]')) {
+    const rel = decodeURIComponent(img.dataset.vault);
+    const tries = [curDir ? curDir + '/' + rel : rel, rel];
+    /* bare filename → search the whole vault, like Obsidian */
+    const byName = fileIndex.get(rel.split('/').pop().toLowerCase());
+    if (byName) tries.push(byName);
+    for (const p of tries) {
+      try {
+        const fh = await resolve(p, false);
+        const url = URL.createObjectURL(await fh.getFile());
+        blobUrls.push(url);
+        img.src = url;
+        break;
+      } catch {}
+    }
+    if (!img.getAttribute('src')) img.alt = 'missing image: ' + rel;
+  }
+}
+
+/* open an attachment in a new browser tab (PDFs/images display,
+   other types download — browsers can't invoke the OS default app) */
+async function openAttachment(path) {
+  try {
+    const fh = await resolve(path, false);
+    window.open(URL.createObjectURL(await fh.getFile()), '_blank');
+  } catch { setStatus('Not found: ' + path); }
+}
+
+/* import files into a vault folder and insert links at the cursor */
+async function importFiles(fileList, dest = 'attachments') {
+  let dir = root;
+  for (const s of dest.split('/').filter(Boolean))
+    dir = await dir.getDirectoryHandle(s, { create: true });
+  const ta = $('editor'), s = ta.selectionStart;
+  let insert = '';
+  for (const file of fileList) {
+    const name = await uniqueName(dir, file.name, false);
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(file);
+    await w.close();
+    const label = file.name.replace(/\.[^.]+$/, '');
+    const img = file.type.startsWith('image/') ? '!' : '';
+    insert += `${img}[${label}](${dest ? dest + '/' : ''}${encodeURIComponent(name)})\n`;
+  }
+  ta.value = ta.value.slice(0, s) + insert + ta.value.slice(ta.selectionEnd);
+  ta.selectionStart = ta.selectionEnd = s + insert.length;
+  ta.dispatchEvent(new Event('input'));
+  refreshTree();
+}
+
+$('attachBtn').onclick = async () => {
+  if (!root) return;
+  const files = await showOpenFilePicker({ multiple: true });
+  importFiles(await Promise.all(files.map(f => f.getFile())));
+};
+
+/* drag & drop files onto the editor to attach them */
+$('editor').addEventListener('dragover', e => e.preventDefault());
+$('editor').addEventListener('drop', e => {
+  if (e.dataTransfer?.files?.length && root) {
+    e.preventDefault();
+    importFiles(e.dataTransfer.files);
+  }
+});
+
+/* paste an image → save to attachments/, insert a markdown image link */
+$('editor').addEventListener('paste', async e => {
+  const file = [...(e.clipboardData?.files || [])]
+    .find(f => f.type.startsWith('image/'));
+  if (!file || !root) return;
+  e.preventDefault();
+  const now = new Date();
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
+                `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+  const name = `Pasted image ${stamp}.${ext}`;
+  const dir = await root.getDirectoryHandle('attachments', { create: true });
+  const fh = await dir.getFileHandle(name, { create: true });
+  const w = await fh.createWritable();
+  await w.write(file);
+  await w.close();
+  const ta = $('editor'), s = ta.selectionStart;
+  const link = `![](attachments/${encodeURIComponent(name)})`;
+  ta.value = ta.value.slice(0, s) + link + ta.value.slice(ta.selectionEnd);
+  ta.selectionStart = ta.selectionEnd = s + link.length;
+  ta.dispatchEvent(new Event('input'));
+});
+
+/* preview links: vault-relative paths open notes or attachments */
+$('preview').addEventListener('click', async e => {
+  const a = e.target.closest('a');
+  if (!a) return;
+  if (a.classList.contains('wikilink')) {
+    e.preventDefault();
+    const name = a.dataset.wiki;
+    const hit = noteIndex.get(name.toLowerCase()) ||
+                noteIndex.get(name.split('/').pop().toLowerCase());
+    if (hit) return openPath(hit);
+    /* unresolved link → create the note at vault root */
+    return openNote(name.endsWith('.md') ? name : name + '.md', true);
+  }
+  const href = a.getAttribute('href');
+  if (!href || /^(https?|data|blob|mailto|file):/.test(href)) return;
+  e.preventDefault();
+  const rel = decodeURIComponent(href);
+  const curDir = curPath.split('/').slice(0, -1).join('/');
+  const tries = [curDir ? curDir + '/' + rel : rel, rel];
+  const byName = fileIndex.get(rel.split('/').pop().toLowerCase());
+  if (byName) tries.push(byName);
+  for (const p of tries) {
+    try {
+      await resolve(p, false);
+      return href.endsWith('.md') ? openPath(p) : openAttachment(p);
+    } catch {}
+  }
+  setStatus('Not found: ' + rel);
+});
+
+/* checkbox toggles write back into the source */
+$('preview').addEventListener('change', e => {
+  const el = e.target;
+  if (!el.matches('input[type=checkbox][data-t]')) return;
+  const n = +el.dataset.t;
+  let count = -1;
+  $('editor').value = $('editor').value.split('\n').map(l => {
+    if (/^\s*[-*+]\s+\[[ xX]\]/.test(l)) {
+      count++;
+      if (count === n) return l.replace(/\[[ xX]\]/, el.checked ? '[x]' : '[ ]');
+    }
+    return l;
+  }).join('\n');
+  save(true);
+  renderPreview();
+});
+
+/* ---------- mode toggle ---------- */
+function setMode(preview) {
+  document.body.classList.toggle('preview', preview);
+  $('modeBtn').textContent = preview ? 'Edit' : 'Preview';
+  if (preview) { flushSave(); renderPreview(); }
+  else $('editor').focus();
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
+    e.preventDefault();
+    setMode(!document.body.classList.contains('preview'));
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault();
+    save();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+    e.preventDefault();
+    if (root) openQuick();
+  }
+});
+
+/* ---------- buttons ---------- */
+$('openBtn').onclick = openVault;
+$('changeBtn').onclick = async () => { root = null; await openVault(); };
+$('todayBtn').onclick = () => openDay(new Date());
+$('modeBtn').onclick = () => setMode(!document.body.classList.contains('preview'));
+function shiftDay(n) {
+  const m = curPath.match(/(\d{4})-(\d{2})-(\d{2})\.md$/);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date();
+  d.setDate(d.getDate() + n);
+  openDay(d);
+}
+$('prevDay').onclick = () => shiftDay(-1);
+$('nextDay').onclick = () => shiftDay(1);
+
+$('newNoteBtn').onclick = async () => {
+  const p = prompt('New note path (relative to vault root):', 'untitled.md');
+  if (!p) return;
+  let path = p.trim().replace(/^\/+|\/+$/g, '');
+  if (!path) return;
+  if (!path.endsWith('.md')) path += '.md';
+  await openNote(path, true);
+};
+
+$('newFolderBtn').onclick = async () => {
+  const p = prompt('New folder path (relative to vault root):');
+  if (!p) return;
+  const path = p.trim().replace(/^\/+|\/+$/g, '');
+  if (!path) return;
+  let dir = root;
+  for (const s of path.split('/'))
+    dir = await dir.getDirectoryHandle(s, { create: true });
+  await refreshTree();
+};
+
+/* ---------- sidebar resize ---------- */
+const sidebar = $('sidebar');
+{
+  const sw = +localStorage.getItem('dn-side-w');
+  if (sw >= 160) sidebar.style.width = sw + 'px';
+  $('resizer').addEventListener('mousedown', e => {
+    e.preventDefault();
+    document.body.classList.add('resizing');
+    document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!document.body.classList.contains('resizing')) return;
+    const w = Math.min(560, Math.max(160, e.clientX));
+    sidebar.style.width = w + 'px';
+    localStorage.setItem('dn-side-w', w);
+  });
+  document.addEventListener('mouseup', () => {
+    document.body.classList.remove('resizing');
+    document.body.style.userSelect = '';
+  });
+}
+
+/* pick up files added outside the app (e.g. via Obsidian) */
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) flushSave();
+  else if (root) refreshTree();
+});
+
+/* ---------- context menu ---------- */
+const menu = $('menu');
+let menuTarget = null;
+
+$('tree').addEventListener('contextmenu', e => {
+  const fileEl = e.target.closest('.file');
+  const sumEl = e.target.closest('summary');
+  if (!fileEl && !sumEl) return;
+  e.preventDefault();
+  menuTarget = fileEl
+    ? { path: fileEl.dataset.path, isDir: false }
+    : { path: sumEl.parentElement.dataset.path, isDir: true };
+  for (const act of ['note', 'folder', 'sep'])
+    menu.querySelector(`[data-act=${act}]`).style.display =
+      menuTarget.isDir ? '' : 'none';
+  menu.querySelector('[data-act=newtab]').style.display =
+    menuTarget.isDir ? 'none' : '';
+  menu.style.left = Math.min(e.clientX, innerWidth - 220) + 'px';
+  menu.style.top = Math.min(e.clientY, innerHeight - 140) + 'px';
+  menu.style.display = 'block';
+});
+document.addEventListener('click', () => menu.style.display = 'none');
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    menu.style.display = 'none';
+    $('help').classList.remove('open');
+    $('about').classList.remove('open');
+    $('quick').classList.remove('open');
+    $('trash').classList.remove('open');
+  }
+});
+$('helpBtn').onclick = () => $('help').classList.add('open');
+$('help').addEventListener('click', e => {
+  if (e.target === $('help')) $('help').classList.remove('open');
+});
+$('aboutBtn').onclick = () => $('about').classList.add('open');
+$('about').addEventListener('click', e => {
+  if (e.target === $('about')) $('about').classList.remove('open');
+});
+
+menu.addEventListener('click', async e => {
+  const act = e.target.dataset.act;
+  if (!act || act === 'sep' || !menuTarget) return;
+  const { path, isDir } = menuTarget;
+  menuTarget = null;
+  if (act === 'trash') return trashEntry(path, isDir);
+  if (act === 'newtab') return openNote(path, false, true);
+  if (act === 'rename') {
+    const cur = path.split('/').pop();
+    const nn = prompt(`Rename "${cur}" to:`, cur);
+    if (!nn) return;
+    let newName = nn.trim().replace(/^\/+|\/+$/g, '');
+    if (!newName || newName === cur) return;
+    if (!isDir && !/\.[^.]+$/.test(newName))
+      newName += cur.match(/\.[^.]+$/)?.[0] || '';
+    return moveEntry(path, isDir,
+      path.split('/').slice(0, -1).join('/'), newName);
+  }
+  if (act === 'delete') return deleteEntry(path, isDir);
+  if (act === 'move') {
+    const dest = prompt(
+      `Move "${path}" to folder (vault-relative, blank = root):`);
+    if (dest === null) return;
+    const d = dest.trim().replace(/^\/+|\/+$/g, '');
+    let dir = root;
+    for (const s of d.split('/').filter(Boolean))
+      dir = await dir.getDirectoryHandle(s, { create: true });
+    return moveEntry(path, isDir, d);
+  }
+  const p = prompt(act === 'note'
+    ? `New note name inside ${path}/:` : `New folder name inside ${path}/:`);
+  if (!p) return;
+  const name = p.trim().replace(/^\/+|\/+$/g, '');
+  if (!name) return;
+  if (act === 'note') {
+    const np = `${path}/${name.endsWith('.md') ? name : name + '.md'}`;
+    await openNote(np, true);
+  } else {
+    let dir = await resolveDir(path);
+    for (const s of name.split('/'))
+      dir = await dir.getDirectoryHandle(s, { create: true });
+    await refreshTree();
+  }
+});
+
+/* ---------- quick open (Ctrl/Cmd+P) ---------- */
+let quickItems = [], quickSel = 0;
+function openQuick() {
+  $('quick').classList.add('open');
+  $('quickIn').value = '';
+  filterQuick('');
+  $('quickIn').focus();
+}
+function closeQuick() { $('quick').classList.remove('open'); }
+function filterQuick(q) {
+  q = q.toLowerCase();
+  quickItems = notePaths.filter(p => p.toLowerCase().includes(q)).slice(0, 60);
+  quickSel = 0;
+  renderQuick();
+}
+function renderQuick() {
+  const list = $('quickList');
+  list.innerHTML = '';
+  if (!quickItems.length) {
+    list.innerHTML = '<div class="q empty">No matching notes</div>';
+    return;
+  }
+  quickItems.forEach((p, i) => {
+    const el = document.createElement('div');
+    el.className = 'q' + (i === quickSel ? ' sel' : '');
+    const base = p.split('/').pop().replace(/\.md$/, '');
+    const dir = p.slice(0, p.length - base.length - 3);
+    const b = document.createElement('span');
+    b.textContent = base;
+    const d = document.createElement('span');
+    d.className = 'qp';
+    d.textContent = ' ' + dir;
+    el.append(b, d);
+    el.onclick = () => { closeQuick(); openPath(p); };
+    list.appendChild(el);
+  });
+  list.children[quickSel]?.scrollIntoView({ block: 'nearest' });
+}
+$('quickIn').addEventListener('input', e => filterQuick(e.target.value));
+$('quickIn').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') {
+    quickSel = Math.min(quickSel + 1, quickItems.length - 1);
+    renderQuick(); e.preventDefault();
+  } else if (e.key === 'ArrowUp') {
+    quickSel = Math.max(quickSel - 1, 0);
+    renderQuick(); e.preventDefault();
+  } else if (e.key === 'Enter' && quickItems[quickSel]) {
+    closeQuick(); openPath(quickItems[quickSel]);
+  }
+});
+$('quick').addEventListener('click', e => {
+  if (e.target === $('quick')) closeQuick();
+});
+
+/* ---------- trash viewer / restore ---------- */
+async function renderTrash() {
+  const box = $('trashList');
+  box.innerHTML = '';
+  const entries = [];
+  try {
+    const trash = await root.getDirectoryHandle('.trash');
+    for await (const [name, h] of trash.entries())
+      entries.push({ name, isDir: h.kind === 'directory' });
+  } catch {}
+  entries.sort((a, b) => a.name.localeCompare(b.name));
+  if (!entries.length) {
+    box.innerHTML = '<div style="padding:8px 0;color:var(--text-dim)">Trash is empty</div>';
+    return;
+  }
+  for (const e of entries) {
+    const row = document.createElement('div');
+    row.className = 'trow';
+    const nm = document.createElement('span');
+    nm.className = 'tname';
+    nm.textContent = e.name + (e.isDir ? '/' : '');
+    const rb = document.createElement('button');
+    rb.className = 'ghost';
+    rb.textContent = 'Restore';
+    rb.onclick = () => restoreEntry(e.name, e.isDir);
+    const db = document.createElement('button');
+    db.className = 'ghost';
+    db.textContent = 'Delete';
+    db.onclick = async () => {
+      if (!confirm(`Permanently delete "${e.name}"?`)) return;
+      const trash = await root.getDirectoryHandle('.trash');
+      await trash.removeEntry(e.name, { recursive: true });
+      renderTrash();
+    };
+    row.append(nm, rb, db);
+    box.appendChild(row);
+  }
+}
+
+async function restoreEntry(name, isDir) {
+  /* date-named notes go back to their YYYY/MM folder; the rest to root */
+  const dm = name.match(/^(\d{4})-(\d{2})-(\d{2})\.md$/);
+  const destDirPath = dm
+    ? parts(new Date(+dm[1], +dm[2] - 1, +dm[3])).slice(0, 2).join('/')
+    : '';
+  let destDir = root;
+  for (const s of destDirPath.split('/').filter(Boolean))
+    destDir = await destDir.getDirectoryHandle(s, { create: true });
+  const trash = await root.getDirectoryHandle('.trash');
+  const destName = await uniqueName(destDir, name, isDir);
+  if (isDir) {
+    const src = await trash.getDirectoryHandle(name);
+    await copyDir(src, await destDir.getDirectoryHandle(destName, { create: true }));
+  } else {
+    const src = await trash.getFileHandle(name);
+    const dest = await destDir.getFileHandle(destName, { create: true });
+    const w = await dest.createWritable();
+    await w.write(await src.getFile());
+    await w.close();
+  }
+  await trash.removeEntry(name, { recursive: true });
+  await refreshTree();
+  renderTrash();
+}
+$('trashBtn').onclick = () => {
+  $('trash').classList.add('open');
+  renderTrash();
+};
+$('trash').addEventListener('click', e => {
+  if (e.target === $('trash')) $('trash').classList.remove('open');
+});
+
+/* ---------- themes & custom colors ---------- */
+const THEMES = {
+  dark:  { '--bg': '#1e1e1e', '--bg-alt': '#252525', '--bg-hover': '#2e2e2e',
+           '--border': '#333333', '--text': '#dcddde', '--text-dim': '#888888',
+           '--accent': '#7f6df2', '--accent-dim': '#483d8b' },
+  light: { '--bg': '#ffffff', '--bg-alt': '#f3f3f5', '--bg-hover': '#e7e7eb',
+           '--border': '#d8d8dc', '--text': '#232326', '--text-dim': '#6b6b72',
+           '--accent': '#6a54e8', '--accent-dim': '#cfc8f5' }
+};
+const COLOR_VARS = [
+  ['--bg', 'Background'], ['--bg-alt', 'Sidebar / panels'],
+  ['--bg-hover', 'Hover'], ['--border', 'Borders'],
+  ['--text', 'Text'], ['--text-dim', 'Dimmed text'],
+  ['--accent', 'Accent (buttons, links, checkboxes)'],
+  ['--accent-dim', 'Selected file']
+];
+let colorOverrides = JSON.parse(localStorage.getItem('dn-colors') || '{}');
+let themeName = localStorage.getItem('dn-theme') || 'dark';
+
+function applyTheme() {
+  for (const [k, v] of Object.entries(THEMES[themeName]))
+    document.documentElement.style.setProperty(k, v);
+  for (const [k, v] of Object.entries(colorOverrides))
+    document.documentElement.style.setProperty(k, v);
+  updateFavicon();
+}
+
+/* favicon droplet follows the accent color */
+function updateFavicon() {
+  const c = getComputedStyle(document.documentElement)
+    .getPropertyValue('--accent').trim();
+  const svg =
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>` +
+    `<path d='M32 5C42 19 53 28 53 40a21 21 0 1 1-42 0C11 28 22 19 32 5Z' fill='${c}'/>` +
+    `<ellipse cx='23' cy='24' rx='4' ry='8' fill='#ffffff' opacity='0.3' transform='rotate(-28 23 24)'/>` +
+    `<path d='M23 33h18M32 33v17' stroke='#ffffff' stroke-width='6' stroke-linecap='round'/>` +
+    `</svg>`;
+  $('favicon').href = 'data:image/svg+xml,' + encodeURIComponent(svg);
+}
+
+const colorRows = $('colorRows');
+for (const [v, label] of COLOR_VARS) {
+  const lab = document.createElement('label');
+  lab.textContent = label;
+  const inp = document.createElement('input');
+  inp.type = 'color';
+  inp.dataset.var = v;
+  inp.oninput = () => {
+    colorOverrides[v] = inp.value;
+    localStorage.setItem('dn-colors', JSON.stringify(colorOverrides));
+    applyTheme();
+  };
+  lab.appendChild(inp);
+  colorRows.appendChild(lab);
+}
+function syncColorInputs() {
+  const cs = getComputedStyle(document.documentElement);
+  colorRows.querySelectorAll('input[type=color]').forEach(i =>
+    i.value = cs.getPropertyValue(i.dataset.var).trim());
+}
+$('darkBtn').onclick = () => {
+  themeName = 'dark';
+  localStorage.setItem('dn-theme', themeName);
+  applyTheme(); syncColorInputs();
+};
+$('lightBtn').onclick = () => {
+  themeName = 'light';
+  localStorage.setItem('dn-theme', themeName);
+  applyTheme(); syncColorInputs();
+};
+{
+  const fs = +localStorage.getItem('dn-font') || 15;
+  $('preview').style.fontSize = fs + 'px';
+  $('fontSize').value = fs;
+  $('fontSizeVal').textContent = fs + 'px';
+  $('fontSize').oninput = e => {
+    localStorage.setItem('dn-font', e.target.value);
+    $('preview').style.fontSize = e.target.value + 'px';
+    $('fontSizeVal').textContent = e.target.value + 'px';
+  };
+}
+$('editor').spellcheck = localStorage.getItem('dn-spell') === '1';
+$('spellChk').checked = $('editor').spellcheck;
+$('spellChk').onchange = e => {
+  localStorage.setItem('dn-spell', e.target.checked ? '1' : '0');
+  $('editor').spellcheck = e.target.checked;
+};
+$('resetColors').onclick = () => {
+  colorOverrides = {};
+  localStorage.removeItem('dn-colors');
+  applyTheme(); syncColorInputs();
+};
+$('themeBtn').onclick = e => {
+  e.stopPropagation();
+  const s = $('settings');
+  s.style.display = s.style.display === 'block' ? 'none' : 'block';
+  if (s.style.display === 'block') syncColorInputs();
+};
+$('settings').addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', () => $('settings').style.display = 'none');
+
+applyTheme();
+
+/* ---------- init ---------- */
+(async () => {
+  if (!('showDirectoryPicker' in window)) {
+    $('unsupported').style.display = 'block';
+    $('openBtn').disabled = true;
+    return;
+  }
+  const saved = await idbGet('vault').catch(() => null);
+  if (saved) {
+    root = saved;
+    if (await root.queryPermission({ mode: 'readwrite' }) === 'granted') {
+      try {
+        $('welcome').classList.add('hidden');
+        await refreshTree();
+        await openDay(new Date());
+        setMode(true);
+        return;
+      } catch {
+        root = null; // stored handle is stale — folder moved or deleted
+        $('welcome').classList.remove('hidden');
+        $('openErr').textContent =
+          `Couldn't open "${saved.name}" — it may have been moved or deleted.`;
+        $('openErr').style.display = 'block';
+      }
+    } else {
+      $('openBtn').textContent = `Reopen "${saved.name}"`;
+    }
+  }
+})();
+</script>
+</body>
+</html>
