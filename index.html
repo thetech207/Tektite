@@ -16,6 +16,17 @@
     --accent-dim: #483d8b;
   }
   * { box-sizing: border-box; }
+  /* slim, theme-colored scrollbars (only appear when content overflows) */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border); border-radius: 5px;
+    border: 2px solid transparent; background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dim); background-clip: padding-box;
+  }
+  * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
   html, body { height: 100%; margin: 0; }
   body {
     background: var(--bg);
@@ -49,6 +60,42 @@
   }
   #resizer { flex: 0 0 5px; cursor: col-resize; border-left: 1px solid var(--border); }
   #resizer:hover, body.resizing #resizer { background: var(--accent-dim); }
+  /* ---------- right control panel ---------- */
+  #panel {
+    width: 170px; flex: 0 0 auto; background: var(--bg-alt);
+    display: flex; flex-direction: column; align-items: center;
+    gap: 6px; padding: 8px; border-left: 1px solid var(--border);
+  }
+  #panel .panel-head {
+    align-self: stretch;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 2px 4px 6px; color: var(--text-dim);
+    font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  }
+  #panel .panel-head button { padding: 0 6px; font-size: 12px; }
+  /* grid single-column → every button takes the widest label's width */
+  #panel .pbtns { display: grid; gap: 6px; }
+  #panel .pbtn {
+    padding: 7px 12px; font-size: 13px; text-align: left;
+  }
+  #panelTab {
+    position: fixed; right: 0; top: 50%; transform: translateY(-50%);
+    z-index: 12; display: none; padding: 10px 3px;
+    background: var(--bg-alt); color: var(--text-dim);
+    border: 1px solid var(--border); border-right: 0;
+    border-radius: 6px 0 0 6px; font-size: 12px;
+  }
+  body.panel-hidden #panel { display: none; }
+  body.panel-hidden #panelTab { display: block; }
+  #topbar .ticon {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 4px 8px; color: var(--text-dim);
+  }
+  #topbar .ticon:hover { color: var(--text); }
+  #topbar .ticon svg { width: 15px; height: 15px; }
+  #modeBtn .i-pen { display: none; }
+  body.preview #modeBtn .i-pen { display: block; }
+  body.preview #modeBtn .i-eye { display: none; }
   #searchBox {
     margin: 6px 12px; padding: 5px 8px; font: inherit; font-size: 13px;
     background: var(--bg); color: var(--text);
@@ -482,8 +529,6 @@
          title="Filename filter — Ctrl/⌘+Shift+F searches note text">
   <div id="tree"></div>
   <div class="side-foot">
-    <button class="ghost" id="trashBtn" style="margin-bottom:6px">Trash</button>
-    <button class="ghost" id="helpBtn" style="margin-bottom:6px">Markdown reference</button>
     <button class="ghost" id="changeBtn">Change folder</button>
   </div>
 </aside>
@@ -497,15 +542,25 @@
     <span id="crumb"></span>
     <span id="wc"></span>
     <span id="status"></span>
-    <button class="ghost" id="attachBtn">Attach</button>
-    <button class="ghost" id="themeBtn">Theme</button>
-    <button id="modeBtn" title="Ctrl/Cmd+E">Preview</button>
-    <button class="ghost" id="printBtn">Print</button>
-    <button class="ghost" id="aboutBtn">About</button>
+    <button class="ghost ticon" id="attachBtn" title="Attach files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+    <button class="ghost ticon" id="modeBtn" title="Preview (Ctrl/⌘+E)"><svg class="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><svg class="i-pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
+    <button class="ghost ticon" id="printBtn" title="Print preview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>
   </div>
   <textarea id="editor" spellcheck="false" placeholder="Start writing markdown…"></textarea>
   <div id="preview"></div>
 </main>
+
+<aside id="panel">
+  <div class="panel-head"><span>Control</span>
+    <button class="ghost" id="panelHide" title="Hide panel">»</button></div>
+  <div class="pbtns">
+    <button class="ghost pbtn" id="themeBtn">Theme</button>
+    <button class="ghost pbtn" id="helpBtn">Markdown reference</button>
+    <button class="ghost pbtn" id="trashBtn">Trash</button>
+    <button class="ghost pbtn" id="aboutBtn">About</button>
+  </div>
+</aside>
+<button id="panelTab" title="Show panel">«</button>
 
 <div id="menu">
   <div class="mi" data-act="newtab">Open in new tab</div>
@@ -527,6 +582,10 @@
   <label>Preview font size
     <span><input type="range" id="fontSize" min="12" max="24" step="1"
           style="width:64px;vertical-align:middle"> <span id="fontSizeVal"></span></span>
+  </label>
+  <label>Panel width
+    <span><input type="range" id="panelW" min="140" max="320" step="4"
+          style="width:64px;vertical-align:middle"> <span id="panelWVal"></span></span>
   </label>
   <label>Spellcheck <input type="checkbox" id="spellChk"></label>
   <button class="ghost" id="resetColors">Reset colors</button>
@@ -1757,7 +1816,7 @@ $('preview').addEventListener('change', e => {
 /* ---------- mode toggle ---------- */
 function setMode(preview) {
   document.body.classList.toggle('preview', preview);
-  $('modeBtn').textContent = preview ? 'Edit' : 'Preview';
+  $('modeBtn').title = (preview ? 'Edit' : 'Preview') + ' (Ctrl/⌘+E)';
   if (preview) { flushSave(); renderPreview(); }
   else $('editor').focus();
 }
@@ -1836,6 +1895,23 @@ const sidebar = $('sidebar');
     document.body.style.userSelect = '';
   });
 }
+
+/* ---------- right control panel: fixed width & hide ---------- */
+const panel = $('panel');
+{
+  const pw = +localStorage.getItem('dn-panel-w');
+  if (pw) panel.style.width = pw + 'px';
+  if (localStorage.getItem('dn-panel-hide') === '1')
+    document.body.classList.add('panel-hidden');
+}
+$('panelHide').onclick = () => {
+  document.body.classList.add('panel-hidden');
+  localStorage.setItem('dn-panel-hide', '1');
+};
+$('panelTab').onclick = () => {
+  document.body.classList.remove('panel-hidden');
+  localStorage.removeItem('dn-panel-hide');
+};
 
 /* pick up files added outside the app (e.g. via Obsidian) */
 document.addEventListener('visibilitychange', () => {
@@ -2439,6 +2515,16 @@ $('lightBtn').onclick = () => {
     $('fontSizeVal').textContent = e.target.value + 'px';
   };
 }
+{
+  const pw = +localStorage.getItem('dn-panel-w') || 170;
+  $('panelW').value = pw;
+  $('panelWVal').textContent = pw + 'px';
+  $('panelW').oninput = e => {
+    localStorage.setItem('dn-panel-w', e.target.value);
+    panel.style.width = e.target.value + 'px';
+    $('panelWVal').textContent = e.target.value + 'px';
+  };
+}
 $('editor').spellcheck = localStorage.getItem('dn-spell') === '1';
 $('spellChk').checked = $('editor').spellcheck;
 $('spellChk').onchange = e => {
@@ -2454,7 +2540,12 @@ $('themeBtn').onclick = e => {
   e.stopPropagation();
   const s = $('settings');
   s.style.display = s.style.display === 'block' ? 'none' : 'block';
-  if (s.style.display === 'block') syncColorInputs();
+  if (s.style.display === 'block') {
+    /* sit left of the control panel when it's open */
+    s.style.right = (document.body.classList.contains('panel-hidden')
+      ? 12 : panel.offsetWidth + 17) + 'px';
+    syncColorInputs();
+  }
 };
 $('settings').addEventListener('click', e => e.stopPropagation());
 document.addEventListener('click', () => $('settings').style.display = 'none');

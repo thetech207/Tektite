@@ -60,8 +60,16 @@ dynamically-set SVG favicons, hence PNG).
   and `EMOJI` — keep those arrays current and both the help modal and
   the cheat sheet update themselves. `resolveImages(container)` serves
   preview and print; blob URLs are tracked per container in `imgUrls`.
+- **Right panel**: `#panel` holds app-level buttons (Theme, Markdown
+  reference, Trash, About — equal width via a single-column grid);
+  the topbar keeps only note-scoped inline-SVG icon buttons
+  (`currentColor`, so they follow theme vars). Fixed width set by the
+  Theme → "Panel width" slider (`dn-panel-w`); collapses to the
+  `#panelTab` edge tab (`dn-panel-hide`). The settings popover offsets
+  right by the panel width.
 - **Settings persistence**: `localStorage` keys `dn-theme`, `dn-colors`,
-  `dn-font`, `dn-spell`, `dn-side-w`, `dn-tree-open`.
+  `dn-font`, `dn-spell`, `dn-side-w`, `dn-tree-open`, `dn-panel-w`,
+  `dn-panel-hide`.
 
 ## Conventions
 
