@@ -47,7 +47,19 @@ dynamically-set SVG favicons, hence PNG).
 - **Editor behaviors**: Enter continues lists/tasks (empty item → break
   out), Tab/Shift+Tab indents, auto-pairs `* ` `` ` `` `_` `~` `(` `{`
   quotes — `[` deliberately excluded (checkbox ergonomics). Paste/drop
-  imports files to `attachments/`.
+  imports files to `attachments/`. Typing `:` opens the emoji shortcode
+  popup (caret-anchored via a mirror div; capture-phase keydown so it
+  beats the editor's own Enter/Tab handlers); `:name:` renders as an
+  emoji in preview via the `EMOJI` map in `inline()`.
+- **Print**: topbar Print → `#printSheet` overlay renders the note via
+  `md()` into a fixed light-styled "page" (`#printDoc` has its own
+  palette — paper is white regardless of theme). `@media print` uses
+  `body:has(#printSheet.open)`/`#cheat.open` to hide everything but the
+  open overlay; `@page` sets margins. Help → "Printable cheat sheet"
+  opens `#cheat`, a half-letter card rendered from `SYNTAX`, `SHORTCUTS`
+  and `EMOJI` — keep those arrays current and both the help modal and
+  the cheat sheet update themselves. `resolveImages(container)` serves
+  preview and print; blob URLs are tracked per container in `imgUrls`.
 - **Settings persistence**: `localStorage` keys `dn-theme`, `dn-colors`,
   `dn-font`, `dn-spell`, `dn-side-w`, `dn-tree-open`.
 
