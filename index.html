@@ -218,8 +218,14 @@
   #preview mark { background: var(--accent-dim); color: var(--text); border-radius: 2px; padding: 0 2px; }
   #preview hr { border: 0; border-top: 1px solid var(--border); margin: 20px 0; }
   #preview ul, #preview ol { padding-left: 24px; }
-  #preview li.task { list-style: none; margin-left: -20px; }
-  #preview li.task input { margin-right: 6px; accent-color: var(--accent); }
+  #preview li.task {
+    list-style: none; margin-left: -20px;
+    padding-left: 26px; position: relative;
+  }
+  #preview li.task input {
+    position: absolute; left: 0; top: 4px; margin: 0;
+    width: 16px; height: 16px; accent-color: var(--accent);
+  }
   #preview img { max-width: 100%; }
   #preview table { border-collapse: collapse; margin: 8px 0; }
   #preview th, #preview td {
@@ -287,8 +293,14 @@
   #printDoc mark { background: color-mix(in srgb, var(--accent) 22%, #fff);
     border-radius: 2px; padding: 0 2px; }
   #printDoc ul, #printDoc ol { padding-left: 24px; margin: 6px 0; }
-  #printDoc li.task { list-style: none; margin-left: -20px; }
-  #printDoc li.task input { margin-right: 6px; accent-color: var(--accent); }
+  #printDoc li.task {
+    list-style: none; margin-left: -20px;
+    padding-left: 26px; position: relative;
+  }
+  #printDoc li.task input {
+    position: absolute; left: 0; top: 4px; margin: 0;
+    width: 16px; height: 16px; accent-color: var(--accent);
+  }
   #printDoc img { max-width: 100%; }
   #printDoc table { border-collapse: collapse; margin: 8px 0; }
   #printDoc th, #printDoc td { border: 1px solid #ccc; padding: 4px 10px; }
