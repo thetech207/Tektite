@@ -1850,9 +1850,17 @@ $('preview').addEventListener('click', async e => {
                 noteIndex.get(name.split('/').pop().toLowerCase());
     if (hit) return openPath(hit);
     /* unresolved link → create the note; a date-named link lands in its
-       YYYY/MM folder so the calendar marks it */
-    const dnm = name.match(/^(\d{4})-(\d{2})-(\d{2})(\.md)?$/);
-    if (dnm) return openDay(new Date(+dnm[1], +dnm[2] - 1, +dnm[3]));
+       YYYY/MM folder so the calendar marks it — accept both
+       YYYY-MM-DD and the MM-DD-YYYY format the tree displays */
+    const dnm = name.match(
+      /^(?:(\d{4})-(\d{2})-(\d{2})|(\d{2})-(\d{2})-(\d{4}))(?:\.md)?$/);
+    if (dnm) {
+      const y = +(dnm[1] || dnm[6]);
+      const mo = +(dnm[2] || dnm[4]);
+      const d = +(dnm[3] || dnm[5]);
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31)
+        return openDay(new Date(y, mo - 1, d));
+    }
     return openNote(name.endsWith('.md') ? name : name + '.md', true);
   }
   const href = a.getAttribute('href');
