@@ -366,13 +366,13 @@
   }
 
   /* ---------- context menu ---------- */
-  #menu {
+  #menu, #calMenu {
     position: fixed; z-index: 20; display: none; min-width: 210px;
     background: var(--bg-alt); border: 1px solid var(--border); border-radius: 6px;
     padding: 4px; box-shadow: 0 4px 16px rgba(0,0,0,.5); font-size: 13px;
   }
-  #menu .mi { padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-  #menu .mi:hover { background: var(--bg-hover); }
+  #menu .mi, #calMenu .mi { padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+  #menu .mi:hover, #calMenu .mi:hover { background: var(--bg-hover); }
   #menu .mi.danger { color: #e07070; }
   #menu .sep { height: 1px; background: var(--border); margin: 4px 6px; }
 
@@ -604,6 +604,10 @@
   <div class="mi danger" data-act="delete">Delete permanently…</div>
 </div>
 
+<div id="calMenu">
+  <div class="mi" data-act="carry">Carry over tasks →</div>
+</div>
+
 <div id="settings">
   <div class="srow">
     <button class="ghost" id="darkBtn">Dark</button>
@@ -640,7 +644,7 @@
 <div id="about">
   <div id="aboutCard">
     <h2>Tektite</h2>
-    <div class="ver">Version 1.4 — September 24, 2026</div>
+    <div class="ver">Version 1.5 — September 24, 2026</div>
     <div class="credit">Developed by Curtis Brown &amp; Devin (Cognition)</div>
     <p class="tag">A minimal Obsidian-style daily journal.<br>
        One HTML file, no dependencies, your notes stay on your disk.</p>
@@ -813,8 +817,6 @@ async function openNote(path, create, newTab = false) {
       const d = new Date(+m[1], +m[2] - 1, +m[3]);
       content = `# ${d.toLocaleDateString('en-US',
         { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}\n\n`;
-      const carried = await rolloverTasks(d);
-      if (carried) content += `## To do\n${carried}\n`;
     } else {
       content = `# ${fh.name.replace(/\.md$/, '')}\n\n`;
     }
@@ -944,20 +946,51 @@ function renderTabs() {
   }
 }
 
-/* find the most recent prior daily note and carry over unchecked tasks */
-async function rolloverTasks(d) {
-  for (let i = 1; i <= 14; i++) {
-    const prev = new Date(d);
-    prev.setDate(d.getDate() - i);
-    try {
-      const fh = await resolve(parts(prev).join('/'), false);
-      const text = await (await fh.getFile()).text();
-      const tasks = text.split('\n')
-        .filter(l => /^\s*[-*+]\s+\[ \]/.test(l));
-      return tasks.length ? tasks.join('\n') + '\n' : '';
-    } catch {}
+/* copy unchecked tasks from a day's note into the next day's note,
+   creating it if needed — invoked from the calendar context menu */
+async function carryOverTasks(d) {
+  let text;
+  try {
+    const fh = await resolve(parts(d).join('/'), false);
+    text = await (await fh.getFile()).text();
+  } catch { return setStatus('No note for that day'); }
+  const tasks = text.split('\n').filter(l => /^\s*[-*+]\s+\[ \]/.test(l));
+  if (!tasks.length) return setStatus('No open tasks to carry over');
+  const next = new Date(d); next.setDate(d.getDate() + 1);
+  const path = parts(next).join('/');
+  let content;
+  try {
+    content = await (await (await resolve(path, false)).getFile()).text();
+  } catch {
+    content = `# ${next.toLocaleDateString('en-US',
+      { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}\n\n`;
   }
-  return '';
+  /* skip tasks already present so carrying twice doesn't duplicate */
+  const add = tasks.filter(t => !content.includes(t.trim()));
+  if (!add.length) return setStatus('Tasks already carried over');
+  const block = add.join('\n');
+  const todoIdx = content.search(/^## To do\s*$/m);
+  if (todoIdx !== -1) {
+    const nl = content.indexOf('\n', todoIdx);
+    content = nl === -1
+      ? content + '\n' + block + '\n'
+      : content.slice(0, nl + 1) + block + '\n' + content.slice(nl + 1);
+  } else {
+    content = content.replace(/\s*$/, '') + `\n\n## To do\n${block}\n`;
+  }
+  const fh = await resolve(path, true);
+  const w = await fh.createWritable();
+  await w.write(content);
+  await w.close();
+  /* keep an open tab for that note in sync */
+  const t = tabs.find(t => t.path === path);
+  if (t) {
+    t.content = content;
+    if (t === curTab) { $('editor').value = content; renderPreview(); }
+  }
+  await refreshTree();
+  setStatus(`Carried ${add.length} task${add.length > 1 ? 's' : ''} → ` +
+    next.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
 }
 
 /* ---------- saving ---------- */
@@ -1194,8 +1227,17 @@ function renderCalendar() {
   $('cal').innerHTML = html + '</div>';
   $('calPrev').onclick = () => { if (--calM < 0) { calM = 11; calY--; } renderCalendar(); };
   $('calNext').onclick = () => { if (++calM > 11) { calM = 0; calY++; } renderCalendar(); };
-  $('cal').querySelectorAll('.cal-day').forEach(el =>
-    el.onclick = () => openDay(new Date(calY, calM, +el.dataset.d), true));
+  $('cal').querySelectorAll('.cal-day').forEach(el => {
+    el.onclick = () => openDay(new Date(calY, calM, +el.dataset.d), true);
+    el.oncontextmenu = e => {
+      e.preventDefault();
+      calMenuDate = new Date(calY, calM, +el.dataset.d);
+      const cm = $('calMenu');
+      cm.style.left = Math.min(e.clientX, innerWidth - 220) + 'px';
+      cm.style.top = Math.min(e.clientY, innerHeight - 140) + 'px';
+      cm.style.display = 'block';
+    };
+  });
 }
 
 /* filename-only filter */
@@ -1807,7 +1849,10 @@ $('preview').addEventListener('click', async e => {
     const hit = noteIndex.get(name.toLowerCase()) ||
                 noteIndex.get(name.split('/').pop().toLowerCase());
     if (hit) return openPath(hit);
-    /* unresolved link → create the note at vault root */
+    /* unresolved link → create the note; a date-named link lands in its
+       YYYY/MM folder so the calendar marks it */
+    const dnm = name.match(/^(\d{4})-(\d{2})-(\d{2})(\.md)?$/);
+    if (dnm) return openDay(new Date(+dnm[1], +dnm[2] - 1, +dnm[3]));
     return openNote(name.endsWith('.md') ? name : name + '.md', true);
   }
   const href = a.getAttribute('href');
@@ -1953,6 +1998,13 @@ document.addEventListener('visibilitychange', () => {
 /* ---------- context menu ---------- */
 const menu = $('menu');
 let menuTarget = null;
+let calMenuDate = null;
+
+$('calMenu').addEventListener('click', e => {
+  if (e.target.dataset.act === 'carry' && calMenuDate)
+    carryOverTasks(calMenuDate);
+  $('calMenu').style.display = 'none';
+});
 
 $('tree').addEventListener('contextmenu', e => {
   const fileEl = e.target.closest('.file');
@@ -1971,10 +2023,14 @@ $('tree').addEventListener('contextmenu', e => {
   menu.style.top = Math.min(e.clientY, innerHeight - 140) + 'px';
   menu.style.display = 'block';
 });
-document.addEventListener('click', () => menu.style.display = 'none');
+document.addEventListener('click', () => {
+  menu.style.display = 'none';
+  $('calMenu').style.display = 'none';
+});
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     menu.style.display = 'none';
+    $('calMenu').style.display = 'none';
     $('help').classList.remove('open');
     $('about').classList.remove('open');
     $('quick').classList.remove('open');

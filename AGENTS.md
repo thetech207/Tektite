@@ -15,8 +15,11 @@ dynamically-set SVG favicons, hence PNG).
   re-permissioned on load; stale handles fall back to the welcome screen.
 - **Daily notes**: convention `YYYY/MM - Month/YYYY-MM-DD.md` via `parts()`.
   Tree labels render `MM-DD-YYYY - Weekday`. New date notes get a `#`
-  heading plus `## To do` rollover of unchecked tasks from the most recent
-  prior daily note (`rolloverTasks`, 14-day lookback).
+  heading. Unresolved `[[links]]` create notes on click; date-named
+  links route through `openDay` so they land in their month folder and
+  get calendar dots. Right-click a calendar day → "Carry over tasks"
+  copies that day's unchecked tasks into the next day's note
+  (`carryOverTasks`, dedupes, inserts under `## To do` if present).
 - **Tabs**: `tabs[]` of `{path, handle, content}`; `curTab`/`curHandle`/
   `curPath` mirror the active tab. `openNote(path, create, newTab)` is the
   single entry point — tree clicks reuse the current tab, calendar clicks
