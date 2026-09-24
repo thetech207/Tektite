@@ -67,9 +67,10 @@ dynamically-set SVG favicons, hence PNG).
   Theme → "Panel width" slider (`dn-panel-w`); collapses to the
   `#panelTab` edge tab (`dn-panel-hide`). The settings popover offsets
   right by the panel width.
-- **Settings persistence**: `localStorage` keys `dn-theme`, `dn-colors`,
-  `dn-font`, `dn-spell`, `dn-side-w`, `dn-tree-open`, `dn-panel-w`,
-  `dn-panel-hide`.
+- **Settings persistence**: `localStorage` keys `dn-theme`, `dn-colors`
+  (per-theme overrides — `{dark:{},light:{}}`; old flat format migrates
+  onto the active theme), `dn-font`, `dn-spell`, `dn-side-w`,
+  `dn-tree-open`, `dn-panel-w`, `dn-panel-hide`.
 
 ## Conventions
 

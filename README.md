@@ -80,7 +80,9 @@ deleted you'll get a clear message and can pick a new one.
 ## Appearance
 
 - **Theme** button (topbar): dark/light plus per-color pickers for
-  background, panels, text, accent, etc. Settings persist per browser.
+  background, panels, text, accent, etc. Custom colors are remembered
+  per theme — dark tweaks stay in dark — and Reset colors restores only
+  the theme you're viewing. Settings persist per browser.
 - **About** button (topbar): version, release date, credits, quickstart.
 - **Spellcheck** toggle and a **preview font-size** slider live in the Theme
   panel (spellcheck off by default).
