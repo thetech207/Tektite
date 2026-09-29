@@ -1017,7 +1017,79 @@ function updateWC() {
   const w = t.trim() ? t.trim().split(/\s+/).length : 0;
   $('wc').textContent = `${w}w · ${t.length}c`;
 }
+
+/* Renumber ordered lists so every contiguous <ol> run counts n,n+1,n+2…
+   per nesting level — mirroring renderListBlock's stack logic so the
+   source always matches the preview. Level-0 runs anchor at their first
+   item's literal number (so "2024. was" and deliberate starts survive);
+   nested runs always restart at 1. Scans the list block(s) intersecting
+   char range [p0,p1], skips fenced code, and remaps the selection
+   through any digit-length changes. */
+function renumberRange(ta, p0, p1) {
+  const v = ta.value, lines = v.split('\n');
+  const ITEM = /^(\s*)(?:([-*+])|(\d+)\.)\s+/;
+  const inF = new Array(lines.length), oldLen = new Array(lines.length),
+        start = new Array(lines.length);
+  let off = 0, fence = false, l0 = 0, l1 = 0;
+  for (let i = 0; i < lines.length; i++) {
+    start[i] = off; oldLen[i] = lines[i].length; inF[i] = fence;
+    if (/^\s*```/.test(lines[i])) fence = !fence;
+    if (off <= p0) l0 = i;
+    if (off <= p1) l1 = i;
+    off += lines[i].length + 1;
+  }
+  const isItem = i => !inF[i] && ITEM.test(lines[i]);
+  const fix = new Map(), stack = [];
+  for (let i = l0; i <= l1; i++) {
+    if (!isItem(i)) continue;
+    let s = i, e = i;
+    while (s && isItem(s - 1)) s--;
+    while (e + 1 < lines.length && isItem(e + 1)) e++;
+    stack.length = 0;
+    for (let j = s; j <= e; j++) {
+      const m = lines[j].match(ITEM);
+      const ind = m[1].replace(/\t/g, '  ').length, type = m[3] ? 'ol' : 'ul';
+      const open = () => stack.push({ ind, type,
+        n: type === 'ol' ? (ind === 0 ? +m[3] : 1) - 1 : 0 });
+      if (!stack.length || ind > stack[stack.length - 1].ind) open();
+      else {
+        while (stack.length && ind < stack[stack.length - 1].ind) stack.pop();
+        if (stack.length && stack[stack.length - 1].type !== type) {
+          stack.pop();
+          open();
+        }
+      }
+      if (!stack.length) continue;
+      const n = ++stack[stack.length - 1].n;
+      if (type === 'ol' && m[3] !== String(n)) {
+        lines[j] = m[1] + n + lines[j].slice(m[1].length + m[3].length);
+        fix.set(j, { ind: m[1].length, from: m[3].length, to: String(n).length });
+      }
+    }
+    i = e;
+  }
+  if (!fix.size) return;
+  /* capture before writing — assigning .value resets the caret */
+  const ss = ta.selectionStart, se = ta.selectionEnd;
+  ta.value = lines.join('\n');
+  const remap = p => {
+    let i = 0;
+    while (i + 1 < lines.length && p > start[i] + oldLen[i]) i++;
+    const col = p - start[i], f = fix.get(i);
+    const nc = !f || col <= f.ind ? col :
+               col >= f.ind + f.from ? col + f.to - f.from : f.ind + f.to;
+    let base = 0;
+    for (let j = 0; j < i; j++)
+      base += oldLen[j] + (fix.has(j) ? fix.get(j).to - fix.get(j).from : 0) + 1;
+    return base + Math.min(nc, lines[i].length);
+  };
+  ta.selectionStart = remap(ss);
+  ta.selectionEnd = remap(se);
+}
+
 $('editor').addEventListener('input', () => {
+  const ta = $('editor');
+  renumberRange(ta, ta.selectionStart, ta.selectionEnd);
   setStatus('Unsaved…');
   updateWC();
   clearTimeout(saveTimer);
@@ -1044,11 +1116,15 @@ $('editor').addEventListener('keydown', e => {
   if (!text.trim()) {
     ta.value = v.slice(0, lineStart) + '\n' + v.slice(lineEnd);
     ta.selectionStart = ta.selectionEnd = lineStart + 1;
+    /* breaking out splits the block — renumber what remains above/below */
+    renumberRange(ta, Math.max(0, lineStart - 1),
+                Math.min(ta.value.length, lineStart + 2));
   } else {
     const nb = /\d/.test(bullet) ? (parseInt(bullet) + 1) + '.' : bullet;
     const insert = '\n' + indent + nb + ' ' + (task ? '[ ] ' : '');
     ta.value = v.slice(0, s) + insert + v.slice(s);
     ta.selectionStart = ta.selectionEnd = s + insert.length;
+    renumberRange(ta, ta.selectionStart, ta.selectionEnd);
   }
   ta.dispatchEvent(new Event('input'));
 });
@@ -1075,6 +1151,7 @@ $('editor').addEventListener('keydown', e => {
     ta.selectionStart = s + 2;
     ta.selectionEnd = en + 2 * lines.length;
   }
+  renumberRange(ta, ta.selectionStart, ta.selectionEnd);
   ta.dispatchEvent(new Event('input'));
 });
 
@@ -1447,15 +1524,17 @@ const isSpecial = l =>
 
 function renderListBlock(items) {
   let html = '', stack = [];
+  const open = it => `<${it.type}` +
+    (it.type === 'ol' && it.num !== 1 ? ` start="${it.num}"` : '') + '>';
   for (const it of items) {
     if (!stack.length || it.indent > stack[stack.length - 1].indent) {
-      html += `<${it.type}>`;
+      html += open(it);
       stack.push({ indent: it.indent, type: it.type });
     } else {
       while (stack.length && it.indent < stack[stack.length - 1].indent)
         html += `</${stack.pop().type}>`;
       if (stack.length && stack[stack.length - 1].type !== it.type) {
-        html += `</${stack.pop().type}><${it.type}>`;
+        html += `</${stack.pop().type}>${open(it)}`;
         stack.push({ indent: it.indent, type: it.type });
       }
     }
@@ -1526,6 +1605,7 @@ function md(src) {
         items.push({
           indent: m[1].replace(/\t/g, '  ').length,
           type: m[3] ? 'ol' : 'ul',
+          num: m[3] ? parseInt(m[3]) : 0,
           task: !!t, checked: t ? t[1] !== ' ' : false,
           text: t ? t[2] : m[4],
           tIdx: t ? taskNo++ : -1

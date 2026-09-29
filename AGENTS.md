@@ -50,7 +50,13 @@ dynamically-set SVG favicons, hence PNG).
 - **Editor behaviors**: Enter continues lists/tasks (empty item → break
   out), Tab/Shift+Tab indents, auto-pairs `* ` `` ` `` `_` `~` `(` `{`
   quotes — `[` deliberately excluded (checkbox ergonomics). Paste/drop
-  imports files to `attachments/`. Typing `:` opens the emoji shortcode
+  imports files to `attachments/`. `renumberRange(ta, p0, p1)` rewrites
+  `N.` markers so every `<ol>` run counts sequentially — runs on `input`
+  plus the Enter/Tab handlers. Level-0 runs anchor at their first item's
+  number (deliberate starts like `2024.` survive; preview emits
+  `<ol start>` to match); nested runs always restart at 1. Fenced code
+  is skipped and the selection is remapped through digit-length edits.
+  Typing `:` opens the emoji shortcode
   popup (caret-anchored via a mirror div; capture-phase keydown so it
   beats the editor's own Enter/Tab handlers); `:name:` renders as an
   emoji in preview via the `EMOJI` map in `inline()`.
