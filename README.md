@@ -84,8 +84,10 @@ deleted you'll get a clear message and can pick a new one.
   per theme — dark tweaks stay in dark — and Reset colors restores only
   the theme you're viewing. Settings persist per browser.
 - **About** button (topbar): version, release date, credits, quickstart.
-- **Spellcheck** toggle and a **preview font-size** slider live in the Theme
-  panel (spellcheck off by default).
+- **Spellcheck** toggle, **preview font-size** and **text-width** sliders
+  live in the Theme panel (spellcheck off by default). Text width shrinks
+  the writing column from the right (text's left edge stays put) — handy
+  on wide monitors.
 - Editor temp files (`.crswap`, `.swp`, `.tmp`, `~`, `.bak`) are hidden from
   the tree even though they exist on disk.
 

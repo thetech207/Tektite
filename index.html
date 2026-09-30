@@ -66,6 +66,10 @@
     display: flex; flex-direction: column; align-items: center;
     gap: 6px; padding: 8px; border-left: 1px solid var(--border);
   }
+  #panel .ptitle {
+    text-align: center; padding: 2px 4px 8px;
+    color: var(--text-dim); font-size: 12px; letter-spacing: .05em;
+  }
   #panel .panel-head {
     align-self: stretch;
     display: flex; align-items: center; justify-content: space-between;
@@ -168,6 +172,12 @@
   .tab .tclose { border-radius: 4px; padding: 0 4px; color: var(--text-dim); }
   .tab .tclose:hover { background: var(--bg-hover); color: var(--text); }
   .tab.dropTarget { box-shadow: inset 3px 0 0 var(--accent); }
+  #tabTitle {
+    display: none; margin-left: auto; align-self: center;
+    padding: 0 14px; white-space: nowrap;
+    color: var(--text-dim); font-size: 12px; letter-spacing: .05em;
+  }
+  body.panel-hidden #tabTitle { display: block; }
   #topbar {
     display: flex; align-items: center; gap: 8px;
     padding: 8px 16px; border-bottom: 1px solid var(--border);
@@ -566,7 +576,7 @@
 <div id="resizer"></div>
 
 <main>
-  <div id="tabbar"></div>
+  <div id="tabbar"><span id="tabTitle"></span></div>
   <div id="topbar">
     <button class="ghost" id="prevDay" title="Previous day">‹</button>
     <button class="ghost" id="nextDay" title="Next day">›</button>
@@ -582,6 +592,7 @@
 </main>
 
 <aside id="panel">
+  <div class="ptitle" id="panelTitle"></div>
   <div class="panel-head"><span>Control</span>
     <button class="ghost" id="panelHide" title="Hide panel">»</button></div>
   <div class="pbtns">
@@ -622,6 +633,10 @@
     <span><input type="range" id="panelW" min="140" max="320" step="4"
           style="width:64px;vertical-align:middle"> <span id="panelWVal"></span></span>
   </label>
+  <label>Text width
+    <span><input type="range" id="textW" min="50" max="100" step="5"
+          style="width:64px;vertical-align:middle"> <span id="textWVal"></span></span>
+  </label>
   <label>Spellcheck <input type="checkbox" id="spellChk"></label>
   <button class="ghost" id="resetColors">Reset colors</button>
 </div>
@@ -644,7 +659,7 @@
 <div id="about">
   <div id="aboutCard">
     <h2>Tektite</h2>
-    <div class="ver">Version 1.51 — September 29, 2026</div>
+    <div class="ver" id="aboutVer"></div>
     <div class="credit">Developed by Curtis Brown &amp; Devin (Cognition)</div>
     <p class="tag">A minimal Obsidian-style daily journal.<br>
        One HTML file, no dependencies, your notes stay on your disk.</p>
@@ -722,6 +737,12 @@
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
+const VERSION = '1.51';
+const RELEASE_DATE = 'September 29, 2026';
+const tabTitleEl = $('tabTitle'); // cached — renderTabs clears #tabbar's DOM
+$('panelTitle').textContent = `Tektite v${VERSION}`;
+tabTitleEl.textContent = `Tektite v${VERSION}`;
+$('aboutVer').textContent = `Version ${VERSION} — ${RELEASE_DATE}`;
 const MONTHS = ['January','February','March','April','May','June','July',
                 'August','September','October','November','December'];
 const pad = n => String(n).padStart(2, '0');
@@ -782,8 +803,10 @@ async function openVault() {
     root = null;
     $('welcome').classList.remove('hidden');
     $('openErr').textContent =
-      'Couldn\'t open that folder — it may have been moved or deleted.';
+      'Couldn\'t open that folder — it may have been moved or deleted.' +
+      (err && err.message ? ` (${err.name}: ${err.message})` : '');
     $('openErr').style.display = 'block';
+    console.error('Vault open failed:', err);
   }
 }
 
@@ -901,7 +924,8 @@ let dragTab = null;
 function renderTabs() {
   const bar = $('tabbar');
   bar.innerHTML = '';
-  bar.style.display = tabs.length ? 'flex' : 'none';
+  bar.style.display = (tabs.length ||
+    document.body.classList.contains('panel-hidden')) ? 'flex' : 'none';
   for (const t of tabs) {
     const el = document.createElement('div');
     el.className = 'tab' + (t === curTab ? ' active' : '');
@@ -944,6 +968,7 @@ function renderTabs() {
     el.onauxclick = e => { if (e.button === 1) closeTab(t); };
     bar.appendChild(el);
   }
+  bar.appendChild(tabTitleEl);
 }
 
 /* copy unchecked tasks from a day's note into the next day's note,
@@ -1204,9 +1229,15 @@ async function scanDir(dir, prefix) {
   const dirs = [], files = [];
   for await (const [name, h] of dir.entries()) {
     if (name.startsWith('.')) continue;
-    if (h.kind === 'directory')
-      dirs.push({ name, path: prefix + name,
-                  children: await scanDir(h, prefix + name + '/') });
+    if (h.kind === 'directory') {
+      let children = [];
+      try {
+        children = await scanDir(h, prefix + name + '/');
+      } catch (err) {
+        console.warn(`Skipping unreadable folder "${prefix + name}":`, err);
+      }
+      dirs.push({ name, path: prefix + name, children });
+    }
     else if (!/(\.(crswap|swp|swx|tmp|bak)|~)$/i.test(name)) {
       files.push({ name, path: prefix + name, md: name.endsWith('.md') });
       if (!fileIndex.has(name.toLowerCase()))
@@ -2071,10 +2102,12 @@ const panel = $('panel');
 $('panelHide').onclick = () => {
   document.body.classList.add('panel-hidden');
   localStorage.setItem('dn-panel-hide', '1');
+  renderTabs();
 };
 $('panelTab').onclick = () => {
   document.body.classList.remove('panel-hidden');
   localStorage.removeItem('dn-panel-hide');
+  renderTabs();
 };
 
 /* pick up files added outside the app (e.g. via Obsidian) */
@@ -2701,6 +2734,22 @@ $('lightBtn').onclick = () => {
   };
 }
 {
+  const setTextW = v => {
+    /* padding-right instead of max-width keeps the elements full-width —
+       scrollbar stays at the panel edge and text's left edge never moves */
+    for (const el of [$('editor'), $('preview')])
+      el.style.paddingRight = v < 100 ? `calc(${100 - v}% + 24px)` : '';
+    $('textWVal').textContent = v + '%';
+  };
+  const tw = +localStorage.getItem('dn-text-w') || 100;
+  $('textW').value = tw;
+  setTextW(tw);
+  $('textW').oninput = e => {
+    localStorage.setItem('dn-text-w', e.target.value);
+    setTextW(+e.target.value);
+  };
+}
+{
   const pw = +localStorage.getItem('dn-panel-w') || 170;
   $('panelW').value = pw;
   $('panelWVal').textContent = pw + 'px';
@@ -2754,12 +2803,14 @@ applyTheme();
         await openDay(new Date());
         setMode(true);
         return;
-      } catch {
+      } catch (err) {
         root = null; // stored handle is stale — folder moved or deleted
         $('welcome').classList.remove('hidden');
         $('openErr').textContent =
-          `Couldn't open "${saved.name}" — it may have been moved or deleted.`;
+          `Couldn't open "${saved.name}" — it may have been moved or deleted.` +
+          (err && err.message ? ` (${err.name}: ${err.message})` : '');
         $('openErr').style.display = 'block';
+        console.error('Stored vault handle failed:', err);
       }
     } else {
       $('openBtn').textContent = `Reopen "${saved.name}"`;

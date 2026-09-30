@@ -69,7 +69,8 @@ dynamically-set SVG favicons, hence PNG).
   and `EMOJI` — keep those arrays current and both the help modal and
   the cheat sheet update themselves. `resolveImages(container)` serves
   preview and print; blob URLs are tracked per container in `imgUrls`.
-- **Right panel**: `#panel` holds app-level buttons (Theme, Markdown
+- **Right panel**: `#panel` shows "Tektite vX" title (`#panelTitle`) and
+  holds app-level buttons (Theme, Markdown
   reference, Trash, About — equal width via a single-column grid);
   the topbar keeps only note-scoped inline-SVG icon buttons
   (`currentColor`, so they follow theme vars). Fixed width set by the
@@ -79,7 +80,9 @@ dynamically-set SVG favicons, hence PNG).
 - **Settings persistence**: `localStorage` keys `dn-theme`, `dn-colors`
   (per-theme overrides — `{dark:{},light:{}}`; old flat format migrates
   onto the active theme), `dn-font`, `dn-spell`, `dn-side-w`,
-  `dn-tree-open`, `dn-panel-w`, `dn-panel-hide`.
+  `dn-tree-open`, `dn-panel-w`, `dn-panel-hide`, `dn-text-w`
+  (editor+preview padding-right % — full-width elements keep the
+  scrollbar at the right edge).
 
 ## Conventions
 
@@ -88,6 +91,8 @@ dynamically-set SVG favicons, hence PNG).
 - Themeable colors must be CSS vars under `:root` and listed in `COLOR_VARS`
   so the Theme panel exposes them.
 - `setStatus()` for transient messages; `confirm()` for destructive ops.
+- Version bumps: edit `VERSION`/`RELEASE_DATE` consts at top of the
+  script — they feed `#panelTitle` and the About dialog.
 
 ## Verify
 
